@@ -174,7 +174,8 @@ function S.topUI()
     end
 
     statBox(x+18, y+84, "목표", tostring(G.targetScore), P.mult)
-    statBox(x+126, y+84, "현재 점수", tostring(math.floor(G.dScore)), P.gold)
+    local scoreColor = G.roundCleared and P.cMono or P.gold
+    statBox(x+126, y+84, "현재 점수", tostring(math.floor(G.dScore)), scoreColor)
     statBox(x+18, y+152, "코인", "$" .. tostring(G.gold), P.gold)
     
     local mx, my = love.mouse.getPosition()
@@ -222,7 +223,7 @@ function S.deckUI()
 
     local bw, bh = w - 60, 50
     local bx, by = x + 30, y + h - 100
-    local canDiscard = nCards > 0 and G.discLeft > 0
+    local canDiscard = G.selCount() > 0 and G.discLeft > 0
     G.hDiscard = mx>=bx and mx<=bx+bw and my>=by and my<=by+bh
 
     UI.button(bx, by, bw, bh, "바꾸기", canDiscard, G.hDiscard, UI.fL)
@@ -464,9 +465,6 @@ function S.scoring()
     local s = G.sc
     if not s.active then return end
 
-    love.graphics.setColor(0.04, 0.05, 0.08, 0.75)
-    love.graphics.rectangle("fill",0,0,C.SW,C.SH)
-
     if s.phase == "nohand" then
         local a = math.min(1, s.timer*2)
         UI.txtC("맞는 규칙 없음...", C.HCX, C.SH/2-20, {P.dim[1],P.dim[2],P.dim[3],a}, UI.fXX)
@@ -481,7 +479,7 @@ function S.scoring()
     end
 
     local lw, lh = 320, 38
-    local startY = 155
+    local startY = 390
     for idx, h in ipairs(s.revealed) do
         local age = (idx==#s.revealed and s.phase=="reveal") and math.min(1,s.timer/.2) or 1
         local cy = startY + (idx-1)*(lh+4)
@@ -519,7 +517,7 @@ function S.scoring()
     end
 
     if #s.revealed > 0 then
-        local ty = C.SH - 170
+        local ty = C.SH - 190
         UI.chipB(C.HCX-35, ty, math.floor(s.dChips))
         love.graphics.setFont(UI.fL); love.graphics.setColor(P.text)
         love.graphics.print("x", C.HCX-4, ty-12)
@@ -529,7 +527,7 @@ function S.scoring()
     if s.phase == "total" then
         local a = math.min(1, s.timer/0.35)
         local sc = UI.easeElastic(a)
-        local sy = C.SH - 100
+        local sy = C.SH - 110
         love.graphics.push()
         love.graphics.translate(C.HCX, sy)
         love.graphics.scale(sc, sc)

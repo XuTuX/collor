@@ -119,7 +119,7 @@ end
 ------------------------------------------------------------
 function R.board()
     if G.phase == "title" then return end
-    local preview = (G.phase == "play") and G.previewCards() or G.board
+    local preview = G.board
     UI.panel(C.BX-18, C.BY-42, C.BW+36, C.BSH+64, 12)
 
     for i = 1, C.BN do
@@ -169,6 +169,27 @@ function R.board()
             love.graphics.translate(-tx,-ty)
             R.character(tx, ty, C.CR, preview[i])
             love.graphics.pop()
+            
+            -- 캐릭터 개별 점수 표시 (점수 계산 중일 때)
+            if G.sc.active then
+                local base = 10
+                for _, info in ipairs(C.COLORS) do
+                    if info.name == preview[i].name then base = info.base or 10; break end
+                end
+                
+                local isHopping = G.sc.hopIdx and G.sc.hopIdx[i]
+                local pillCol = P.chip
+                if isHopping then
+                    pillCol = P.gold
+                end
+                
+                local valStr = "+" .. tostring(base)
+                local valW = UI.fS:getWidth(valStr) + 8
+                local valH = 14
+                
+                -- 캐릭터 머리 위에 점수 말풍선 표시
+                UI.pill(tx - valW/2, ty - C.CR - 16, valW, valH, valStr, pillCol, UI.fS)
+            end
         end
     end
 end
@@ -190,7 +211,7 @@ function R.hand()
     local order = {}
     for i = 1, n do
         local off = i - mid
-        local bx = C.HCX + off * C.HSPC
+        local bx = G.hand[i].visX or (C.HCX + off * C.HSPC)
         local by = C.HY
         local sel = G.hand[i].sel
         local hov = (G.hCard == i)

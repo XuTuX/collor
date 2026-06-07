@@ -28,15 +28,14 @@ function love.update(dt)
         local n = #G.hand
         local mid = (n+1) / 2
         for i = n, 1, -1 do
-            local off = i - mid
-            local cx = C.HCX + off * C.HSPC
+            local card = G.hand[i]
+            local cx = card.visX or (C.HCX + (i - mid) * C.HSPC)
             local cy = C.HY
+            if card.sel then
+                cy = cy - 22
+            end
 
             local hr = C.HCR + 8
-            if G.prevHCard == i then
-                cy = cy - 8
-                hr = C.HCR + 14
-            end
 
             if mx >= cx-hr and mx <= cx+hr and my >= cy-hr and my <= cy+hr then
                 G.hCard = i
@@ -74,7 +73,8 @@ function love.mousepressed(x, y, btn)
     end
 
     -- 공통: 리셋 버튼 클릭 감지
-    if x >= C.RX and x <= C.RX+C.RW and y >= C.RY and y <= C.RY+C.RH then
+    local resetX, resetY, resetW, resetH = C.LX + 134, C.LY + 164, 84, 34
+    if x >= resetX and x <= resetX+resetW and y >= resetY and y <= resetY+resetH then
         G.reset()
         require("sound").play("discard")
         return
@@ -168,20 +168,20 @@ function love.mousepressed(x, y, btn)
 
     -- 플레이 중
     if G.phase == "play" then
-        local swapX, swapY, swapW, swapH = C.HCX + 100, C.HY + 62, 118, 38
+        local swapX, swapY, swapW, swapH = C.RX + 30, C.RY + C.RH - 100, C.RW - 60, 50
         if x >= swapX and x <= swapX+swapW and y >= swapY and y <= swapY+swapH then
             G.discard()
             return
         end
 
-        local bagX, bagY, bagW, bagH = C.HCX - 430, C.HY + 54, 92, 54
+        local bagX, bagY, bagW, bagH = C.RX + 30, C.RY + 30, C.RW - 60, 100
         if x >= bagX and x <= bagX+bagW and y >= bagY and y <= bagY+bagH then
             G.showBag = true
             require("sound").play("select")
             return
         end
 
-        local runX, runY, runW, runH = C.HCX - 218, C.HY + 62, 190, 38
+        local runX, runY, runW, runH = C.RX + 30, C.RY + C.RH - 180, C.RW - 60, 60
         if x >= runX and x <= runX+runW and y >= runY and y <= runY+runH then
             G.executeHand()
             return
@@ -209,6 +209,8 @@ function love.mousereleased(x, y, btn)
         local dist = math.sqrt(dx * dx + dy * dy)
         if dist >= 8 then
             G.reorderHand(dragI, x)
+        else
+            G.toggleSelect(dragI)
         end
     end
 end

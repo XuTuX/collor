@@ -129,14 +129,6 @@ function G.toggleSelect(i)
     return true
 end
 
-function G.previewCards()
-    local picked = G.selectedCards()
-    if #picked == 0 and G.phase ~= "play" then
-        return G.board
-    end
-    return picked
-end
-
 function G.selCount()
     local n = 0
     for _, c in ipairs(G.hand) do if c.sel then n = n + 1 end end
@@ -181,6 +173,150 @@ function G.applyBoard(cards)
             G.spawnParticles(sx, sy, card.color, 8)
         end
     end
+end
+
+function G.executeHand()
+    local count = math.min(C.BN, #G.hand)
+    if count == 0 then return false end
+    
+    G.phase = "executing"
+    G.execAnim.active = true
+    G.execAnim.cards = {}
+    G.execAnim.idx = 1
+    G.execAnim.timer = 0
+    G.execAnim.phase = "flying"
+    
+    for i = 1, count do
+        local card = table.remove(G.hand, 1)
+        card.sel = false
+        table.insert(G.execAnim.cards, card)
+    end
+    
+    -- Clear remaining selections
+    for _, c in ipairs(G.hand) do c.sel = false end
+    
+    G.board = {}
+    for i = 1, C.BN do G.board[i] = nil end
+    
+    require("sound").play("select")
+    return true
+end
+
+-- ── 관문 시작 ──
+function G.newRound()
+    G.board = {}
+    for i = 1, C.BN do G.board[i] = nil end
+    G.slotAnim = {}
+    G.deck = G.createDeck()
+    G.hand = G.drawCards(C.HN)
+    G.discLeft = C.MAXDISC
+    
+    -- 특별 규칙: 바꾸기 차단
+    if G.stage == 3 and G.bossGimmick == "no_discard" then
+        G.discLeft = 0
+    end
+    
+    G.phase = "play"
+    G.detected = {}
+    G.rndScore = 0
+    G.hSlot = -1
+    G.hCard = -1
+    G.dragIndex = -1
+    G.sc.active = false
+    G.sc.revealed = {}
+    G.execAnim.active = false
+    G.execAnim.cards = {}
+    G.noticeText = ""
+    G.noticeTimer = 0
+    G.showBag = false
+    
+    -- 목표 점수 계산 (Ante & Stage 기준 발라트로풍 스케일링)
+    local base = 250
+    if G.ante == 1 then
+        if G.stage == 1 then G.targetScore = 300
+        elseif G.stage == 2 then G.targetScore = 700
+        else G.targetScore = 1500 end
+    else
+        local multi = (G.stage == 1 and 1 or G.stage == 2 and 1.8 or 3.5)
+        G.targetScore = math.floor(base * math.pow(2.4, G.ante - 1) * multi * 10)
+        G.targetScore = math.floor(G.targetScore / 100) * 100
+    end
+    
+    -- 보스 기믹: 목표 점수 1.5배 상승
+    if G.stage == 3 and G.bossGimmick == "high_target" then
+        G.targetScore = math.floor(G.targetScore * 1.5)
+    end
+    
+    G.shake = 0
+    G.particles = {}
+    
+    G.roundCleared = (G.score >= G.targetScore)
+
+    -- 관문 배너 애니메이션 트리거
+    G.roundStartAnim.t = 0
+    G.roundStartAnim.active = true
+end
+
+function G.reset()
+    G.score = 0
+    G.dScore = 0
+    G.round = 1
+    G.ante = 1
+    G.stage = 1
+    G.gold = 4
+    G.jokers = {}
+    G.bossGimmick = "none"
+    G.roundCleared = false
+    
+    -- 색 규칙 레벨 초기화
+    for name, stats in pairs(G.handStats) do
+        stats.level = 1
+        stats.chips = (name == "Mini Mono" and 30 or name == "Half Mono" and 60 or name == "Tower" and 150 or name == "Half Mirror" and 100 or name == "Grand Mirror" and 400 or name == "Half Step" and 120 or 300)
+        stats.mult = (name == "Mini Mono" and 3 or name == "Half Mono" and 5 or name == "Tower" and 12 or name == "Half Mirror" and 8 or name == "Grand Mirror" and 40 or name == "Half Step" and 10 or 25)
+    end
+    
+    G.deckConfig = {}
+    local perColor = C.DECK / #C.COLORS
+    for _, c in ipairs(C.COLORS) do
+        for _ = 1, perColor do
+            table.insert(G.deckConfig, {name=c.name, color={c.color[1],c.color[2],c.color[3]}})
+        end
+    end
+    
+    G.newRound()
+    G.phase = "title" -- 시작 시 타이틀 화면으로
+end
+
+-- ── 바꾸기 ──
+function G.discard()
+    if G.discLeft <= 0 then
+        G.notice("바꾸기 기회가 없어요", "warn")
+        return
+    end
+    
+    local selectedIndices = G.selCards()
+    local toDiscard = #selectedIndices
+    
+    if toDiscard == 0 then
+        G.notice("바꿀 색친구를 선택해주세요", "warn")
+        return
+    end
+    
+    -- 선택한 카드를 패에서 제거 (뒤쪽 인덱스부터 지워야 인덱스가 꼬이지 않음)
+    table.sort(selectedIndices, function(a,b) return a > b end)
+    for _, idx in ipairs(selectedIndices) do
+        table.remove(G.hand, idx)
+    end
+    
+    -- 제거한 수만큼 주머니에서 새로 뽑기
+    local drawn = G.drawCards(toDiscard)
+    for _, c in ipairs(drawn) do
+        table.insert(G.hand, c)
+    end
+    
+    G.discLeft = G.discLeft - 1
+    require("sound").play("discard")
+    G.notice(toDiscard .. "명을 바꿨어요", "ok")
 end
 
 function G.scoreBoard()
@@ -353,14 +489,7 @@ function G.updateScoring(dt)
             s.prevDChips = math.floor(s.dTotal)
         end
         
-        if s.timer >= 2.2 then
-            s.active = false
-            G.score = G.score + G.rndScore
-            G.phase = "result"
-            if G.score >= G.targetScore then
-                require("sound").play("clear")
-            end
-        end
+        -- 자동 관문 결과 이동 제거 (플레이어가 계속 버튼을 누를 때까지 대기)
     end
 end
 
@@ -561,9 +690,67 @@ function G.update(dt)
         G.noticeTimer = math.max(0, G.noticeTimer - dt)
     end
 
-    -- 부드러운 스코어
-    G.dScore = G.dScore + (G.score - G.dScore) * math.min(1, dt * 6)
-    if math.abs(G.dScore - G.score) < 1 then G.dScore = G.score end
+    -- 부드러운 스코어 (점수 계산 중에는 획득 중인 점수를 실시간으로 더해서 보여줌)
+    local targetVal = G.score
+    if G.sc.active then
+        targetVal = G.score + G.sc.dTotal
+    end
+    G.dScore = G.dScore + (targetVal - G.dScore) * math.min(1, dt * 6)
+    if math.abs(G.dScore - targetVal) < 1 then G.dScore = targetVal end
+
+    -- 실시간 관문 통과 연출 (발라트로 스타일)
+    if not G.roundCleared and G.dScore >= G.targetScore and G.phase ~= "title" then
+        G.roundCleared = true
+        require("sound").play("clear")
+        G.shake = G.shake + 12
+        
+        -- 현재 점수 판넬 위치(x+126, y+84 where x=30, y=30) 부근에서 금빛 파티클 폭발
+        local sx = 30 + 126 + 50
+        local sy = 30 + 84 + 30
+        G.spawnParticles(sx, sy, {0.98, 0.85, 0.20}, 30)
+        G.notice("관문 통과!", "ok")
+    end
+    
+    -- 내 색친구 visual X 좌표 업데이트 (순서 변경 시 부드럽게 벌어지기)
+    local n = #G.hand
+    if n > 0 then
+        local mid = (n + 1) / 2
+        local dragIdx = G.dragIndex
+        local targetIdx = -1
+        if dragIdx > 0 then
+            targetIdx = G.handIndexFromX(G.dragX)
+        end
+
+        for i = 1, n do
+            local card = G.hand[i]
+            local targetX
+            
+            if dragIdx == i then
+                targetX = G.dragX
+                card.visX = G.dragX
+            else
+                local slot = i
+                if dragIdx > 0 then
+                    local rIdx = i
+                    if i > dragIdx then
+                        rIdx = i - 1
+                    end
+                    if rIdx < targetIdx then
+                        slot = rIdx
+                    else
+                        slot = rIdx + 1
+                    end
+                end
+                targetX = C.HCX + (slot - mid) * C.HSPC
+            end
+
+            if not card.visX then
+                card.visX = C.HCX + (i - mid) * C.HSPC
+            end
+            
+            card.visX = card.visX + (targetX - card.visX) * math.min(1, dt * 18)
+        end
+    end
     
     -- 실행 애니메이션
     if G.phase == "executing" and G.execAnim.active then
