@@ -95,7 +95,9 @@ function Game.scoreBoard()
     Game.detected = PatternChecker.evaluate(Game.board)
     RuleEngine.applyStatsAndGimmicks(Game.detected, Game.handStats, Game.stage, Game.bossGimmick)
     
+    Game.phase = "scoring"
     ScoreSys.start(Game.board, Game.detected, Game.jokers, Game)
+    Game.stateMachine:change("result", Game)
 end
 
 -- 상점 아이템 구매 처리 (원래 game.lua 이식)

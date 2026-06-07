@@ -331,21 +331,21 @@ end
 function SettingsState.enterShop(gameInstance)
     local pool = {
         -- 색 규칙 강화 반짝임
-        {type="upgrade", hand="Mini Mono", name="세 친구 반짝임", desc="세 친구 규칙 +1\n(+15 별, +1.5 콤보)", price=3},
-        {type="upgrade", hand="Half Mono", name="네 친구 반짝임", desc="네 친구 규칙 +1\n(+25 별, +2 콤보)", price=3},
-        {type="upgrade", hand="Tower", name="색 탑 반짝임", desc="색 탑 규칙 +1\n(+40 별, +3 콤보)", price=3},
-        {type="upgrade", hand="Half Mirror", name="작은 거울 반짝임", desc="작은 거울 규칙 +1\n(+30 별, +2.5 콤보)", price=3},
-        {type="upgrade", hand="Grand Mirror", name="큰 거울 반짝임", desc="큰 거울 규칙 +1\n(+80 별, +8 콤보)", price=3},
-        {type="upgrade", hand="Half Step", name="작은 계단 반짝임", desc="작은 계단 규칙 +1\n(+35 별, +3 콤보)", price=3},
-        {type="upgrade", hand="Perfect Ladder", name="무지개 계단 반짝임", desc="무지개 계단 규칙 +1\n(+60 별, +5 콤보)", price=3},
+        {type="upgrade", hand="Mini Mono", name="세 친구 반짝임", desc="세 친구 규칙 +1\n(+20 별, +2 콤보)", price=3},
+        {type="upgrade", hand="Half Mono", name="네 친구 반짝임", desc="네 친구 규칙 +1\n(+30 별, +2.5 콤보)", price=3},
+        {type="upgrade", hand="Tower", name="색 탑 반짝임", desc="색 탑 규칙 +1\n(+50 별, +4 콤보)", price=3},
+        {type="upgrade", hand="Half Mirror", name="작은 거울 반짝임", desc="작은 거울 규칙 +1\n(+40 별, +3 콤보)", price=3},
+        {type="upgrade", hand="Grand Mirror", name="큰 거울 반짝임", desc="큰 거울 규칙 +1\n(+100 별, +10 콤보)", price=3},
+        {type="upgrade", hand="Half Step", name="작은 계단 반짝임", desc="작은 계단 규칙 +1\n(+45 별, +4 콤보)", price=3},
+        {type="upgrade", hand="Perfect Ladder", name="무지개 계단 반짝임", desc="무지개 계단 규칙 +1\n(+80 별, +6 콤보)", price=3},
 
         -- 도우미 조커
-        {type="joker", id="shiny_eye", name="반짝이는 눈", desc="위에 하양이 있으면\n+40 별", price=6},
-        {type="joker", id="dark_side", name="밤빛 친구", desc="위에 검정이 있으면\n+4 콤보", price=6},
-        {type="joker", id="mirror_shield", name="거울 방패", desc="거울 규칙이 나오면\nx1.5 콤보", price=6},
-        {type="joker", id="rainbow", name="무지개", desc="다른 색이 4종류\n이상이면\n+50 별, +5 콤보", price=7},
-        {type="joker", id="ladder_master", name="계단 대장", desc="계단 규칙이 나오면\n+80 별", price=5},
-        {type="joker", id="gold_rush", name="코인 주머니", desc="관문 종료 시\n+$3 코인 추가", price=5},
+        {type="joker", id="shiny_eye", name="반짝이는 눈", desc="위에 하양이 있으면\n+50 별", price=6},
+        {type="joker", id="dark_side", name="밤빛 친구", desc="위에 검정이 있으면\n+5 콤보", price=6},
+        {type="joker", id="mirror_shield", name="거울 방패", desc="거울 규칙이 나오면\nx1.8 콤보", price=6},
+        {type="joker", id="rainbow", name="무지개", desc="다른 색이 4종류\n이상이면\n+60 별, +6 콤보", price=7},
+        {type="joker", id="ladder_master", name="계단 대장", desc="계단 규칙이 나오면\n+100 별", price=5},
+        {type="joker", id="gold_rush", name="코인 주머니", desc="관문 종료 시\n+$4 코인 추가", price=5},
 
         -- 색친구 주머니 추가 및 삭제
         {type="deck_add", colorName="Red", colorVal={0.92,0.22,0.25}, name="빨강 추가", desc="빨강 색친구 1개를\n주머니에 계속 추가", price=2},
@@ -395,18 +395,6 @@ end
 -- 상점 나가기 및 다음 라운드 준비 (G.exitShop 이식)
 local function exitShop()
     if not G then return end
-    
-    G.stage = G.stage + 1
-    if G.stage > 3 then
-        G.stage = 1
-        G.ante = G.ante + 1
-    end
-    
-    -- 특별 기믹 stage 1 진입 시 미리 결정
-    if G.stage == 1 then
-        local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
-        G.bossGimmick = gimmicks[love.math.random(1, #gimmicks)]
-    end
     
     TurnManager.newRound(G)
     G.stateMachine:change("play", G)

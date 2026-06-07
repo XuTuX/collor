@@ -11,7 +11,7 @@ Balance.BOSS_GIMMICKS = {"no_red", "no_black", "no_discard", "high_target"}
 
 -- Ante 및 Stage에 따른 목표 점수 스케일링 계산 (중복 로직 통합)
 function Balance.getTargetScore(ante, stage, bossGimmick)
-    local base = 250
+    local base = 180
     local target = 0
     if ante == 1 then
         if stage == 1 then target = 300
@@ -19,7 +19,7 @@ function Balance.getTargetScore(ante, stage, bossGimmick)
         else target = 1500 end
     else
         local multi = (stage == 1 and 1 or stage == 2 and 1.8 or 3.5)
-        target = math.floor(base * math.pow(2.4, ante - 1) * multi * 10)
+        target = math.floor(base * math.pow(2.1, ante - 1) * multi * 10)
         target = math.floor(target / 100) * 100
     end
     
@@ -40,7 +40,7 @@ function Balance.calcGoldReward(currentGold, discLeft, jokers)
     
     for _, j in ipairs(jokers or {}) do
         if j.id == "gold_rush" then 
-            jokerBonus = 3 
+            jokerBonus = 4 
         end
     end
     

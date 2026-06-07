@@ -306,6 +306,19 @@ local function proceedNext()
         local totalGold = Balance.calcGoldReward(G.gold, G.discLeft, G.jokers)
         G.gold = G.gold + totalGold
         
+        -- 다음 스테이지로 진행도 미리 변경 (상점에서 클리어 상태가 올바르게 표시되도록 함)
+        G.stage = G.stage + 1
+        if G.stage > 3 then
+            G.stage = 1
+            G.ante = G.ante + 1
+        end
+        
+        -- 특별 관문 규칙 미리 설정
+        if G.stage == 1 then
+            local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
+            G.bossGimmick = gimmicks[love.math.random(1, #gimmicks)]
+        end
+        
         G.phase = "shop"
         local shop = require("systems.joker_system")
         local shopState = require("states.settings_state")
