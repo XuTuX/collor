@@ -17,7 +17,7 @@ function R.init()
 end
 
 ------------------------------------------------------------
--- 캐릭터 그리기 (눈알 마우스 추적)
+-- 캐릭터 그리기
 ------------------------------------------------------------
 function R.character(x, y, rad, blk, opts)
     if not blk then return end
@@ -47,40 +47,41 @@ function R.character(x, y, rad, blk, opts)
     end
     love.graphics.circle("line", x, y+bob, rad)
 
-    local eyeY = y + bob - rad*0.10
+    local eyeY = y + bob - rad*0.13
     local eyeX = rad * 0.28
-    local eyeR = rad * 0.20
-    local pupR = rad * 0.11
-
-    love.graphics.setColor(1,1,1,0.95)
-    love.graphics.circle("fill", x-eyeX, eyeY, eyeR)
-    love.graphics.circle("fill", x+eyeX, eyeY, eyeR)
-
+    local eyeW = rad * 0.15
+    local eyeH = rad * 0.20
     local mx, my = love.mouse.getPosition()
     local dx, dy = mx - x, my - (y+bob)
     local dist = math.max(1, math.sqrt(dx*dx + dy*dy))
-    local maxOff = eyeR * 0.32
-    local px, py = dx/dist*maxOff, math.min(dy/dist*maxOff, maxOff*0.5)
+    local px = dx / dist * rad * 0.035
+    local py = math.max(-rad * 0.025, math.min(rad * 0.04, dy / dist * rad * 0.035))
 
     if blk.name=="Black" then
-        love.graphics.setColor(0.85,0.85,0.90)
+        love.graphics.setColor(0.92,0.92,0.96,0.94)
     else
-        love.graphics.setColor(0.08,0.08,0.12)
+        love.graphics.setColor(0.08,0.08,0.12,0.82)
     end
-    love.graphics.circle("fill", x-eyeX+px, eyeY+py, pupR)
-    love.graphics.circle("fill", x+eyeX+px, eyeY+py, pupR)
+    love.graphics.ellipse("fill", x-eyeX+px, eyeY+py, eyeW, eyeH)
+    love.graphics.ellipse("fill", x+eyeX+px, eyeY+py, eyeW, eyeH)
 
-    love.graphics.setColor(1,1,1,0.75)
-    love.graphics.circle("fill", x-eyeX+px-pupR*0.25, eyeY+py-pupR*0.35, pupR*0.35)
-    love.graphics.circle("fill", x+eyeX+px-pupR*0.25, eyeY+py-pupR*0.35, pupR*0.35)
+    love.graphics.setColor(1,1,1,0.55)
+    love.graphics.circle("fill", x-eyeX+px-eyeW*0.25, eyeY+py-eyeH*0.30, eyeW*0.28)
+    love.graphics.circle("fill", x+eyeX+px-eyeW*0.25, eyeY+py-eyeH*0.30, eyeW*0.28)
 
-    love.graphics.setLineWidth(1.2)
+    if blk.name ~= "Black" then
+        love.graphics.setColor(1,1,1,0.18)
+        love.graphics.circle("fill", x-rad*0.48, y+bob+rad*0.12, rad*0.12)
+        love.graphics.circle("fill", x+rad*0.48, y+bob+rad*0.12, rad*0.12)
+    end
+
+    love.graphics.setLineWidth(1.3)
     if blk.name=="Black" then
-        love.graphics.setColor(0.45,0.45,0.55,0.50)
+        love.graphics.setColor(0.92,0.92,0.96,0.58)
     else
-        love.graphics.setColor(0,0,0,0.22)
+        love.graphics.setColor(0.08,0.08,0.12,0.26)
     end
-    love.graphics.arc("line","open", x, y+bob+rad*0.18, rad*0.20, 0.3, math.pi-0.3)
+    love.graphics.arc("line","open", x, y+bob+rad*0.18, rad*0.20, 0.18, math.pi-0.18)
 
     if opts.selected then
         love.graphics.setColor(P.gold[1],P.gold[2],P.gold[3],0.7+math.sin(love.timer.getTime()*4)*0.2)
@@ -94,32 +95,53 @@ end
 ------------------------------------------------------------
 function R.background()
     love.graphics.setColor(P.bg)
-    love.graphics.rectangle("fill",0,0,C.SW,C.SH)
+    love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
+
+    for y = 0, C.SH, 16 do
+        local t = y / C.SH
+        love.graphics.setColor(
+            P.felt[1] * (1 - t) + P.felt2[1] * t,
+            P.felt[2] * (1 - t) + P.felt2[2] * t,
+            P.felt[3] * (1 - t) + P.felt2[3] * t,
+            0.34
+        )
+        love.graphics.rectangle("fill", 0, y, C.SW, 16)
+    end
+
+    love.graphics.setColor(1, 1, 1, 0.035)
+    love.graphics.setLineWidth(1)
+    for x = -C.SH, C.SW, 44 do
+        love.graphics.line(x, 0, x + C.SH, C.SH)
+    end
 end
 
-------------------------------------------------------------
--- 보드
+-- 실행 미리보기
 ------------------------------------------------------------
 function R.board()
     if G.phase == "title" then return end
-    UI.panel(C.BX-14, C.BY-14, C.BW+28, C.BSH+28, 12)
+    local preview = (G.phase == "play") and G.previewCards() or G.board
+    UI.panel(C.BX-18, C.BY-42, C.BW+36, C.BSH+64, 12)
 
     for i = 1, C.BN do
         local sx = C.BX + (i-1)*(C.BSW+C.BGAP)
         local sy = C.BY
 
-        love.graphics.setColor(G.hSlot==i and P.slotHov or P.slot)
+        love.graphics.setColor(0.25, 0.30, 0.42, 0.10)
+        UI.rr("fill", sx+1, sy+3, C.BSW, C.BSH, 8)
+        love.graphics.setColor(preview[i] and P.slotHov or P.slot)
         UI.rr("fill",sx,sy,C.BSW,C.BSH,6)
-        love.graphics.setColor(G.hSlot==i and P.slotHBd or P.slotBd)
-        love.graphics.setLineWidth(1)
+        love.graphics.setColor(preview[i] and P.slotHBd or P.slotBd)
+        love.graphics.setLineWidth(preview[i] and 2.0 or 1.1)
         UI.rr("line",sx,sy,C.BSW,C.BSH,6)
+        love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], preview[i] and 0.95 or 0.28)
+        UI.rr("fill", sx+6, sy+6, C.BSW-12, 4, 3)
 
-        if not G.board[i] then
-            love.graphics.setColor(P.dim[1],P.dim[2],P.dim[3],0.12)
+        if not preview[i] then
+            love.graphics.setColor(P.dim[1],P.dim[2],P.dim[3],0.18)
             local cx,cy = sx+C.BSW/2, sy+C.BSH/2
-            love.graphics.setLineWidth(1)
-            love.graphics.line(cx-7,cy,cx+7,cy)
-            love.graphics.line(cx,cy-7,cx,cy+7)
+            love.graphics.setLineWidth(2)
+            love.graphics.arc("line", "open", cx, cy, 13, -0.65, math.pi+0.65)
+            love.graphics.line(cx-8, cy, cx+8, cy)
         end
 
         love.graphics.setFont(UI.fS)
@@ -127,7 +149,7 @@ function R.board()
         local ns=tostring(i)
         love.graphics.print(ns, sx+(C.BSW-UI.fS:getWidth(ns))/2, sy+C.BSH-15)
 
-        if G.board[i] then
+        if preview[i] then
             local sc, offY = 1, 0
             if G.slotAnim[i] then
                 local p = math.min(1, G.slotAnim[i].t / G.slotAnim[i].dur)
@@ -140,21 +162,22 @@ function R.board()
             love.graphics.translate(tx,ty)
             love.graphics.scale(sc,sc)
             love.graphics.translate(-tx,-ty)
-            R.character(tx, ty, C.CR, G.board[i])
+            R.character(tx, ty, C.CR, preview[i])
             love.graphics.pop()
         end
     end
 end
 
 ------------------------------------------------------------
--- 핸드 (캐릭터 줄)
+-- 내 색친구
 ------------------------------------------------------------
 function R.hand()
     if G.phase ~= "play" then return end
     local n = #G.hand
     local time = love.timer.getTime()
 
-    UI.panel(C.HCX - 274, C.HY - C.HCR - 22, 548, C.HCR*2 + 44, 10)
+    UI.panel(C.HCX - 360, C.HY - C.HCR - 34, 720, C.HCR*2 + 68, 12)
+    UI.txt("내 색친구", C.HCX - 342, C.HY - C.HCR - 25, P.text, UI.fM)
 
     if n == 0 then return end
     local mid = (n+1)/2
@@ -167,7 +190,7 @@ function R.hand()
         local sel = G.hand[i].sel
         local hov = (G.hCard == i)
         local dy = 0
-        if sel then dy = -18 end
+        if sel then dy = -22 end
         if hov then dy = dy - 8 end
         
         local rx, ry = bx, by + dy
@@ -269,6 +292,7 @@ function R.all()
     
     S.shop()
     S.roundStartAnim()
+    S.bagOverlay()
 end
 
 return R

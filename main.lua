@@ -16,43 +16,35 @@ function love.update(dt)
     G.hSlot = -1
     G.hCard = -1
 
-    if G.phase == "play" then
-        -- 보드 슬롯 호버
-        for i = 1, C.BN do
-            local sx = C.BX + (i-1) * (C.BSW + C.BGAP)
-            if mx >= sx and mx <= sx+C.BSW and my >= C.BY and my <= C.BY+C.BSH then
-                G.hSlot = i
-            end
-        end
-
-        -- 핸드 캐릭터 호버 (드래그 중이 아닐 때만 체크하며, 지터 방지를 위해 히트박스 동적 확장 적용)
-        if G.dragIndex <= 0 then
-            local n = #G.hand
-            local mid = (n+1) / 2
-            for i = n, 1, -1 do
-                local off = i - mid
-                local cx = C.HCX + off * C.HSPC
-                local cy = C.HY
-                if G.hand[i].sel then cy = cy - 18 end
-                
-                local hr = C.HCR + 6
-                if G.prevHCard == i then 
-                    cy = cy - 8 
-                    hr = C.HCR + 14 -- 히스테리시스용 히트박스 확장 (지터 루프 방지)
-                end
-                
-                if mx >= cx-hr and mx <= cx+hr and my >= cy-hr and my <= cy+hr then
-                    G.hCard = i
-                    break
-                end
-            end
-            G.prevHCard = G.hCard
-        else
+    if G.phase == "play" and not G.showBag then
+        if G.dragIndex > 0 then
+            G.dragX, G.dragY = mx, my
             G.hCard = -1
             G.prevHCard = -1
-            -- 드래그 위치 업데이트
-            G.dragX, G.dragY = mx, my
+            G.update(dt)
+            return
         end
+
+        local n = #G.hand
+        local mid = (n+1) / 2
+        for i = n, 1, -1 do
+            local off = i - mid
+            local cx = C.HCX + off * C.HSPC
+            local cy = C.HY
+            if G.hand[i].sel then cy = cy - 22 end
+
+            local hr = C.HCR + 8
+            if G.prevHCard == i then
+                cy = cy - 8
+                hr = C.HCR + 14
+            end
+
+            if mx >= cx-hr and mx <= cx+hr and my >= cy-hr and my <= cy+hr then
+                G.hCard = i
+                break
+            end
+        end
+        G.prevHCard = G.hCard
     end
 
     G.update(dt)
@@ -68,6 +60,17 @@ function love.mousepressed(x, y, btn)
     if G.phase == "title" then
         G.phase = "play"
         require("sound").play("discard")
+        return
+    end
+
+    if G.showBag then
+        local backX, backY, backW, backH = C.HCX - 540, 604, 1080, 42
+        local closeX, closeY, closeW, closeH = C.HCX + 420, 82, 84, 32
+        if (x >= backX and x <= backX+backW and y >= backY and y <= backY+backH) or
+           (x >= closeX and x <= closeX+closeW and y >= closeY and y <= closeY+closeH) then
+            G.showBag = false
+            require("sound").play("select")
+        end
         return
     end
 
@@ -150,7 +153,7 @@ function love.mousepressed(x, y, btn)
     -- 결과 → 상점으로 진입 또는 게임 오버로 전환
     if G.phase == "result" then
         if G.score >= G.targetScore then
-            -- 상점 진입 전 골드 보상 더하기
+            -- 상점 진입 전 코인 보상 더하기
             local totalGold = G.calcGoldReward()
             G.gold = G.gold + totalGold
             
@@ -166,36 +169,30 @@ function love.mousepressed(x, y, btn)
 
     -- 플레이 중
     if G.phase == "play" then
-        -- 디스카드 버튼
-        local bw, bh = 88, 34
-        local bx = C.HCX + 294
-        local by = C.HY - 10
-        if x >= bx and x <= bx+bw and y >= by and y <= by+bh then
+        local swapX, swapY, swapW, swapH = C.HCX + 100, C.HY + 62, 118, 38
+        if x >= swapX and x <= swapX+swapW and y >= swapY and y <= swapY+swapH then
             G.discard()
             return
         end
 
-        -- 핸드 캐릭터 클릭 (드래그 시작)
-        if G.hCard > 0 and G.hCard <= #G.hand then
-            G.dragIndex = G.hCard
-            G.dragX, G.dragY = x, y
-            G.dragStartPos.x, G.dragStartPos.y = x, y
+        local bagX, bagY, bagW, bagH = C.HCX - 430, C.HY + 54, 92, 54
+        if x >= bagX and x <= bagX+bagW and y >= bagY and y <= bagY+bagH then
+            G.showBag = true
+            require("sound").play("select")
             return
         end
 
-        -- 보드 슬롯 클릭
-        if G.hSlot > 0 then
-            local sel = G.selCards()
-            if #sel == 1 then
-                if G.board[G.hSlot] then
-                    G.swap(sel[1], G.hSlot)
-                else
-                    G.place(sel[1], G.hSlot)
-                end
-            else
-                -- 클릭 시 회수 (Undo)
-                G.recall(G.hSlot)
-            end
+        local runX, runY, runW, runH = C.HCX - 218, C.HY + 62, 190, 38
+        if x >= runX and x <= runX+runW and y >= runY and y <= runY+runH then
+            G.executeSelection()
+            return
+        end
+
+        if G.hCard > 0 and G.hCard <= #G.hand then
+            G.dragIndex = G.hCard
+            G.dragStartIndex = G.hCard
+            G.dragX, G.dragY = x, y
+            G.dragStartPos.x, G.dragStartPos.y = x, y
             return
         end
     end
@@ -203,35 +200,92 @@ end
 
 function love.mousereleased(x, y, btn)
     if btn ~= 1 then return end
-
     if G.phase == "play" and G.dragIndex > 0 then
         local dragI = G.dragIndex
         G.dragIndex = -1
+        G.dragStartIndex = -1
 
         local dx = x - G.dragStartPos.x
         local dy = y - G.dragStartPos.y
-        local dist = math.sqrt(dx*dx + dy*dy)
-
-        if dist < 6 then
-            -- 단순 클릭: 토글 선택
-            G.hand[dragI].sel = not G.hand[dragI].sel
-            require("sound").play("select")
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist < 8 then
+            G.toggleSelect(dragI)
         else
-            -- 드래그 드롭 완료
-            if G.hSlot > 0 then
-                if G.board[G.hSlot] then
-                    G.swap(dragI, G.hSlot)
-                else
-                    G.place(dragI, G.hSlot)
-                end
-            end
+            G.reorderHand(dragI, x)
         end
     end
 end
 
 function love.keypressed(key)
-    if key == "r" then G.reset() end
-    if key == "escape" then love.event.quit() end
+    if key == "escape" then
+        if G.showBag then
+            G.showBag = false
+            return
+        end
+        love.event.quit()
+        return
+    end
+    if key == "r" then G.reset() return end
+
+    if G.showBag then
+        if key == "b" or key == "return" or key == "space" then
+            G.showBag = false
+            require("sound").play("select")
+        end
+        return
+    end
+
+    if G.phase == "title" and (key == "return" or key == "space") then
+        G.phase = "play"
+        require("sound").play("discard")
+        return
+    end
+
+    if G.phase == "play" and key == "d" then
+        G.discard()
+        return
+    end
+
+    if G.phase == "play" and key == "b" then
+        G.showBag = not G.showBag
+        require("sound").play("select")
+        return
+    end
+
+    if G.phase == "play" and (key == "return" or key == "space") then
+        G.executeSelection()
+        return
+    end
+
+    if G.phase == "scoring" and (key == "return" or key == "space") then
+        local s = G.sc
+        if (s.phase == "total" and s.timer > 1.2) or (s.phase == "nohand" and s.timer > 0.8) then
+            s.active = false
+            G.score = G.score + G.rndScore
+            G.phase = "result"
+            if G.score >= G.targetScore then
+                require("sound").play("clear")
+            end
+        end
+        return
+    end
+
+    if G.phase == "result" and (key == "return" or key == "space") then
+        if G.score >= G.targetScore then
+            local totalGold = G.calcGoldReward()
+            G.gold = G.gold + totalGold
+            G.enterShop()
+            require("sound").play("discard")
+        else
+            G.phase = "gameover"
+            require("sound").play("gameover")
+        end
+        return
+    end
+
+    if G.phase == "shop" and (key == "return" or key == "space") then
+        G.exitShop()
+    end
 end
 
 ------------------------------------------------------------

@@ -1,20 +1,30 @@
 ------------------------------------------------------------
--- detect.lua · 족보 판정 (MONO, MIRROR, STEP)
+-- detect.lua · 색 규칙 판정
 ------------------------------------------------------------
 local C = require("config")
 local D = {}
+
+local function boardLen(b)
+    local n = 0
+    for i = 1, C.BN do
+        if not b[i] then break end
+        n = i
+    end
+    return n
+end
 
 -- 연속 덩어리 추출
 function D.getRuns(b)
     local runs = {}
     if not b[1] then return runs end
     local col, st, len = b[1].name, 1, 1
-    for i = 2, C.BN do
-        if b[i] and b[i].name == col then
+    local n = boardLen(b)
+    for i = 2, n do
+        if b[i].name == col then
             len = len + 1
         else
             table.insert(runs, {color=col, start=st, length=len})
-            if b[i] then col, st, len = b[i].name, i, 1 end
+            col, st, len = b[i].name, i, 1
         end
     end
     table.insert(runs, {color=col, start=st, length=len})
@@ -45,9 +55,10 @@ end
 -- MIRROR: 좌우 대칭 + 2색 이상
 function D.mirror(b)
     local h = {}
+    local n = boardLen(b)
     local function chk(si, len)
         local ei = si + len - 1
-        if ei > C.BN then return false end
+        if ei > n then return false end
         for i = si, ei do if not b[i] then return false end end
         for i = 0, math.floor(len/2) - 1 do
             if b[si+i].name ~= b[ei-i].name then return false end
@@ -63,14 +74,13 @@ function D.mirror(b)
         for i = si, si + len - 1 do p = p .. sh(b[i].name) end
         return p
     end
-    -- Grand (7칸 전체) 우선
+    -- 큰 거울은 7개 전체가 대칭일 때만
     if chk(1, 7) then
         table.insert(h, {cat="MIRROR", name="Grand Mirror", chips=400, mult=40, pat=pat(1,7)})
         return h
     end
-    -- Half (6 → 5)
-    for len = 6, 5, -1 do
-        for st = 1, C.BN - len + 1 do
+    for len = math.min(6, n), 5, -1 do
+        for st = 1, n - len + 1 do
             if chk(st, len) then
                 table.insert(h, {cat="MIRROR", name="Half Mirror", chips=100, mult=8, pat=pat(st,len)})
                 return h
@@ -84,11 +94,12 @@ end
 function D.step(b)
     local h = {}
     local runs = D.getRuns(b)
+    local n = boardLen(b)
     local lens = {}
     for _, r in ipairs(runs) do table.insert(lens, r.length) end
     local function fullPat()
         local p = ""
-        for i = 1, C.BN do p = p .. sh(b[i].name) end
+        for i = 1, n do p = p .. sh(b[i].name) end
         return p
     end
     -- Perfect Ladder (1-2-3-1 or 1-3-2-1) 우선

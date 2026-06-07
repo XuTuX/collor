@@ -50,17 +50,46 @@ end
 
 function UI.panel(x, y, w, h, r)
     r = r or 10
-    -- 부드러운 이중 드롭 섀도우 (Ambient Occlusion 효과)
-    love.graphics.setColor(0.08, 0.10, 0.18, 0.04)
-    UI.rr("fill", x, y + 4, w, h + 2, r)
-    love.graphics.setColor(0.08, 0.10, 0.18, 0.06)
+    love.graphics.setColor(0.20, 0.27, 0.40, 0.08)
+    UI.rr("fill", x + 2, y + 5, w, h, r)
+    love.graphics.setColor(0.20, 0.27, 0.40, 0.06)
     UI.rr("fill", x, y + 2, w, h, r)
 
     love.graphics.setColor(P.panel)
     UI.rr("fill", x, y, w, h, r)
+    love.graphics.setColor(P.panelHi[1], P.panelHi[2], P.panelHi[3], 0.75)
+    UI.rr("fill", x + 1, y + 1, w - 2, math.max(10, h * 0.22), math.max(4, r - 2))
     love.graphics.setColor(P.panelBd)
     love.graphics.setLineWidth(1)
     UI.rr("line", x, y, w, h, r)
+end
+
+function UI.button(x, y, w, h, label, active, hover, font)
+    font = font or UI.fM
+    love.graphics.setColor(0.25, 0.24, 0.22, 0.16)
+    UI.rr("fill", x + 1, y + 3, w, h, 7)
+    if active then
+        love.graphics.setColor(hover and P.btnRH or P.btnR)
+    else
+        love.graphics.setColor(P.btnG)
+    end
+    UI.rr("fill", x, y, w, h, 7)
+    love.graphics.setColor(1, 1, 1, active and 0.16 or 0.06)
+    UI.rr("fill", x + 1, y + 1, w - 2, h * 0.45, 6)
+    love.graphics.setColor(active and P.white or {0.55, 0.57, 0.62})
+    love.graphics.setFont(font)
+    love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
+end
+
+function UI.pill(x, y, w, h, label, col, font)
+    font = font or UI.fS
+    love.graphics.setColor(col[1], col[2], col[3], 0.95)
+    UI.rr("fill", x, y, w, h, math.floor(h / 2))
+    love.graphics.setColor(1, 1, 1, 0.15)
+    UI.rr("fill", x + 1, y + 1, w - 2, h * 0.45, math.floor(h / 2))
+    love.graphics.setColor(P.white)
+    love.graphics.setFont(font)
+    love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
 end
 
 function UI.catCol(c)
@@ -82,20 +111,14 @@ function UI.chipB(cx, cy, val)
     love.graphics.setFont(UI.fM)
     local s = tostring(val)
     local tw = math.max(UI.fM:getWidth(s) + 14, 42)
-    love.graphics.setColor(P.chip)
-    UI.rr("fill", cx - tw / 2, cy - 11, tw, 22, 4)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(s, cx - UI.fM:getWidth(s) / 2, cy - UI.fM:getHeight() / 2 + 1)
+    UI.pill(cx - tw / 2, cy - 11, tw, 22, s, P.chip, UI.fM)
 end
 
 function UI.multB(cx, cy, val)
     love.graphics.setFont(UI.fM)
     local s = "x" .. tostring(val)
     local tw = math.max(UI.fM:getWidth(s) + 14, 40)
-    love.graphics.setColor(P.mult)
-    UI.rr("fill", cx - tw / 2, cy - 11, tw, 22, 4)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(s, cx - UI.fM:getWidth(s) / 2, cy - UI.fM:getHeight() / 2 + 1)
+    UI.pill(cx - tw / 2, cy - 11, tw, 22, s, P.mult, UI.fM)
 end
 
 return UI

@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- game.lua · 게임 상태, 덱 관리, 로직
+-- game.lua · 게임 상태, 주머니 관리, 로직
 ------------------------------------------------------------
 local C = require("config")
 local D = require("detect")
@@ -16,7 +16,7 @@ G.rndScore   = 0
 G.discLeft   = C.MAXDISC
 G.phase      = "play"  -- play | scoring | result | gameover | shop
 G.hSlot      = -1      -- 호버 슬롯
-G.hCard      = -1      -- 호버 카드
+G.hCard      = -1      -- 호버 색친구
 G.detected   = {}
 G.slotAnim   = {}      -- [i] = {t, dur}
 
@@ -24,6 +24,7 @@ G.slotAnim   = {}      -- [i] = {t, dur}
 G.dragIndex   = -1
 G.dragX, G.dragY = 0, 0
 G.dragStartPos = {x = 0, y = 0}
+G.dragStartIndex = -1
 
 -- 목표 점수 및 런닝 스테이지 (Balatro style)
 G.targetScore = 300
@@ -31,11 +32,15 @@ G.ante        = 1
 G.stage       = 1      -- 1: Small, 2: Big, 3: Boss
 G.bossGimmick = "none" -- none | no_red | no_black | no_discard | high_target
 G.gold        = 4
-G.jokers      = {}     -- 보유 조커 목록
+G.jokers      = {}     -- 보유 도우미 목록
 G.shopItems   = {}     -- 상점 품목 목록
-G.deckConfig  = {}     -- 영구 덱 설정
+G.deckConfig  = {}     -- 영구 주머니 설정
+G.noticeText  = ""
+G.noticeTimer = 0
+G.noticeKind  = "info"
+G.showBag     = false
 
--- 족보 레벨 업 업그레이드 스탯
+-- 색 규칙 레벨 업 스탯
 G.handStats = {
     ["Mini Mono"]      = {level=1, chips=30,  mult=3,  scaleChips=15, scaleMult=1.5},
     ["Half Mono"]      = {level=1, chips=60,  mult=5,  scaleChips=25, scaleMult=2.0},
@@ -62,11 +67,15 @@ G.sc = {
 
 
 
--- ── 덱 ──
+local function cloneCard(card)
+    return {name=card.name, color={card.color[1], card.color[2], card.color[3]}}
+end
+
+-- ── 색친구 주머니 ──
 function G.createDeck()
     local d = {}
     for _, card in ipairs(G.deckConfig) do
-        table.insert(d, {name=card.name, color={card.color[1],card.color[2],card.color[3]}})
+        table.insert(d, cloneCard(card))
     end
     for i = #d, 2, -1 do
         local j = love.math.random(1, i)
@@ -95,13 +104,121 @@ function G.selCards()
     return s
 end
 
+function G.selectedCards()
+    local picked = {}
+    for _, c in ipairs(G.hand) do
+        if c.sel then table.insert(picked, c) end
+    end
+    return picked
+end
+
+function G.toggleSelect(i)
+    local card = G.hand[i]
+    if not card then return false end
+    if card.sel then
+        card.sel = false
+    else
+        if G.selCount() >= C.BN then
+            G.notice("더 이상 고를 수 없어요", "warn")
+            return false
+        end
+        card.sel = true
+    end
+    require("sound").play("select")
+    return true
+end
+
+function G.previewCards()
+    local picked = G.selectedCards()
+    if #picked == 0 and G.phase ~= "play" then
+        return G.board
+    end
+    return picked
+end
+
 function G.selCount()
     local n = 0
     for _, c in ipairs(G.hand) do if c.sel then n = n + 1 end end
     return n
 end
 
--- ── 라운드 시작 ──
+function G.handIndexFromX(x)
+    local n = #G.hand
+    if n <= 1 then return 1 end
+    local firstX = C.HCX - ((n - 1) / 2) * C.HSPC
+    local idx = math.floor((x - firstX + C.HSPC / 2) / C.HSPC) + 1
+    return math.max(1, math.min(n, idx))
+end
+
+function G.reorderHand(fromIndex, x)
+    if fromIndex < 1 or fromIndex > #G.hand then return false end
+    local toIndex = G.handIndexFromX(x)
+    if toIndex == fromIndex then return false end
+    local card = table.remove(G.hand, fromIndex)
+    if toIndex > #G.hand + 1 then toIndex = #G.hand + 1 end
+    table.insert(G.hand, toIndex, card)
+    require("sound").play("select")
+    return true
+end
+
+function G.notice(text, kind)
+    G.noticeText = text or ""
+    G.noticeKind = kind or "info"
+    G.noticeTimer = 1.8
+end
+
+function G.applyBoard(cards)
+    G.board = {}
+    G.slotAnim = {}
+    for i = 1, C.BN do
+        local card = cards[i]
+        if card then
+            G.board[i] = cloneCard(card)
+            G.slotAnim[i] = {t=0, dur=0.28}
+            local sx = C.BX + (i-1)*(C.BSW+C.BGAP) + C.BSW/2
+            local sy = C.BY + C.BSH/2
+            G.spawnParticles(sx, sy, card.color, 8)
+        end
+    end
+end
+
+function G.scoreBoard()
+    G.detected = D.evaluate(G.board)
+    for _, h in ipairs(G.detected) do
+        local stats = G.handStats[h.name]
+        if stats then
+            h.chips = stats.chips
+            h.mult = stats.mult
+        end
+        if G.stage == 3 then
+            if G.bossGimmick == "no_red" and string.find(h.pat, "R") then
+                h.chips = 0
+                h.mult = 0
+            elseif G.bossGimmick == "no_black" and string.find(h.pat, "K") then
+                h.chips = 0
+                h.mult = 0
+            end
+        end
+    end
+
+    G.rndScore = G.calcTotalScore()
+    G.startScoring()
+end
+
+function G.executeSelection()
+    local picked = G.selectedCards()
+    if #picked == 0 then
+        G.notice("색친구를 골라주세요", "warn")
+        return false
+    end
+    G.applyBoard(picked)
+    G.shake = G.shake + 8
+    require("sound").play("place")
+    G.scoreBoard()
+    return true
+end
+
+-- ── 관문 시작 ──
 function G.newRound()
     G.board = {}
     for i = 1, C.BN do G.board[i] = nil end
@@ -110,7 +227,7 @@ function G.newRound()
     G.hand = G.drawCards(C.HN)
     G.discLeft = C.MAXDISC
     
-    -- 보스 기믹: 디스카드 차단
+    -- 특별 규칙: 바꾸기 차단
     if G.stage == 3 and G.bossGimmick == "no_discard" then
         G.discLeft = 0
     end
@@ -123,6 +240,9 @@ function G.newRound()
     G.dragIndex = -1
     G.sc.active = false
     G.sc.revealed = {}
+    G.noticeText = ""
+    G.noticeTimer = 0
+    G.showBag = false
     
     -- 목표 점수 계산 (Ante & Stage 기준 발라트로풍 스케일링)
     local base = 250
@@ -144,7 +264,7 @@ function G.newRound()
     G.shake = 0
     G.particles = {}
     
-    -- 라운드 배너 애니메이션 트리거
+    -- 관문 배너 애니메이션 트리거
     G.roundStartAnim.t = 0
     G.roundStartAnim.active = true
 end
@@ -159,7 +279,7 @@ function G.reset()
     G.jokers = {}
     G.bossGimmick = "none"
     
-    -- 족보 레벨 초기화
+    -- 색 규칙 레벨 초기화
     for name, stats in pairs(G.handStats) do
         stats.level = 1
         stats.chips = (name == "Mini Mono" and 30 or name == "Half Mono" and 60 or name == "Tower" and 150 or name == "Half Mirror" and 100 or name == "Grand Mirror" and 400 or name == "Half Step" and 120 or 300)
@@ -198,13 +318,13 @@ function G.place(ci, si)
     G.spawnParticles(sx, sy, card.color, 12)
     require("sound").play("place")
 
-    -- 보드 풀?
+    -- 실행 줄이 가득 찼는지 확인
     local full = true
     for i = 1, C.BN do if not G.board[i] then full = false; break end end
     if full then
         G.detected = D.evaluate(G.board)
         
-        -- 족보 레벨 업 수치 주입 및 보스 기믹(무력화) 필터
+        -- 색 규칙 레벨 수치 주입 및 특별 규칙 필터
         for _, h in ipairs(G.detected) do
             local stats = G.handStats[h.name]
             if stats then
@@ -242,7 +362,7 @@ function G.recall(si)
     return true
 end
 
--- ── 카드 위치 교환 (Swap) ──
+-- ── 색친구 위치 교환 (이전 입력 방식 호환용) ──
 function G.swap(ci, si)
     if si < 1 or si > C.BN or not G.board[si] then return false end
     local cardInHand = G.hand[ci]
@@ -262,17 +382,24 @@ function G.swap(ci, si)
     return true
 end
 
--- ── 디스카드 ──
+-- ── 바꾸기 ──
 function G.discard()
-    if G.discLeft <= 0 then return end
+    if G.discLeft <= 0 then
+        G.notice("바꾸기 기회가 없어요", "warn")
+        return
+    end
     local sel = G.selCards()
-    if #sel == 0 then return end
+    if #sel == 0 then
+        G.notice("바꿀 색친구를 먼저 골라주세요", "warn")
+        return
+    end
     G.discLeft = G.discLeft - 1
     table.sort(sel, function(a,b) return a > b end)
     for _, i in ipairs(sel) do table.remove(G.hand, i) end
     local drawn = G.drawCards(#sel)
     for _, c in ipairs(drawn) do table.insert(G.hand, c) end
     require("sound").play("discard")
+    G.notice("새 색친구가 왔어요", "ok")
 end
 
 
@@ -321,7 +448,7 @@ function G.updateScoring(dt)
                 require("sound").play("reveal")
                 G.shake = G.shake + 8
                 
-                -- 스코어링 족보 출현 파티클 스폰 (보드의 카드 위치에서)
+                -- 색 규칙 출현 파티클
                 for j = 1, C.BN do
                     if G.board[j] then
                         local sx = C.BX + (j-1)*(C.BSW+C.BGAP) + C.BSW/2
@@ -385,7 +512,7 @@ function G.spawnParticles(x, y, color, count)
     end
 end
 
--- ── 조커 및 상점 헬퍼 함수 ──
+-- ── 도우미 및 상점 헬퍼 함수 ──
 function G.applyJokers(tc, tm)
     local colorsOnBoard = {}
     local hasMirror = false
@@ -409,20 +536,20 @@ function G.applyJokers(tc, tm)
     for _, j in ipairs(G.jokers) do
         if j.id == "shiny_eye" and colorsOnBoard["White"] then
             tc = tc + 40
-            table.insert(explain, j.name .. " (+40 Chips)")
+            table.insert(explain, j.name .. " (+40 별)")
         elseif j.id == "dark_side" and colorsOnBoard["Black"] then
             tm = tm + 4
-            table.insert(explain, j.name .. " (+4 Mult)")
+            table.insert(explain, j.name .. " (+4 콤보)")
         elseif j.id == "mirror_shield" and hasMirror then
             tm = tm * 1.5
-            table.insert(explain, j.name .. " (x1.5 Mult)")
+            table.insert(explain, j.name .. " (x1.5 콤보)")
         elseif j.id == "rainbow" and uniqueColorCount >= 4 then
             tc = tc + 50
             tm = tm + 5
-            table.insert(explain, j.name .. " (+50 Chips, +5 Mult)")
+            table.insert(explain, j.name .. " (+50 별, +5 콤보)")
         elseif j.id == "ladder_master" and hasStep then
             tc = tc + 80
-            table.insert(explain, j.name .. " (+80 Chips)")
+            table.insert(explain, j.name .. " (+80 별)")
         end
     end
     
@@ -440,7 +567,7 @@ function G.calcTotalScore()
     return finalChips * finalMult
 end
 
--- 골드 획득 계산
+-- 코인 획득 계산
 function G.calcGoldReward()
     local base = 3
     local discBonus = G.discLeft
@@ -459,30 +586,30 @@ function G.enterShop()
     G.shopItems = {}
     
     local pool = {
-        -- 족보 강화 (Planet 카드 스타일)
-        {type="upgrade", hand="Mini Mono", name="미니 모노 레벨업", desc="미니 모노 레벨 +1\n(+15 칩, +1.5 배수)", price=3},
-        {type="upgrade", hand="Half Mono", name="하프 모노 레벨업", desc="하프 모노 레벨 +1\n(+25 칩, +2 배수)", price=3},
-        {type="upgrade", hand="Tower", name="타워 레벨업", desc="타워 레벨 +1\n(+40 칩, +3 배수)", price=3},
-        {type="upgrade", hand="Half Mirror", name="하프 미러 레벨업", desc="하프 미러 레벨 +1\n(+30 칩, +2.5 배수)", price=3},
-        {type="upgrade", hand="Grand Mirror", name="그랜드 미러 레벨업", desc="그랜드 미러 레벨 +1\n(+80 칩, +8 배수)", price=3},
-        {type="upgrade", hand="Half Step", name="하프 스텝 레벨업", desc="하프 스텝 레벨 +1\n(+35 칩, +3 배수)", price=3},
-        {type="upgrade", hand="Perfect Ladder", name="퍼펙트 래더 레벨업", desc="퍼펙트 래더 레벨 +1\n(+60 칩, +5 배수)", price=3},
-        
-        -- 조커 (패시브)
-        {type="joker", id="shiny_eye", name="반짝이는 눈", desc="보드에 흰색 카드 있을 시:\n+40 칩 보너스", price=6},
-        {type="joker", id="dark_side", name="다크 사이드", desc="보드에 검은색 카드 있을 시:\n+4 배수 보너스", price=6},
-        {type="joker", id="mirror_shield", name="거울 방패", desc="미러 계열 족보 점수 계산 시:\nx1.5 총 배수", price=6},
-        {type="joker", id="rainbow", name="무지개", desc="보드에 4개 이상의 다른 색상\n있을 시: +50 칩, +5 배수", price=7},
-        {type="joker", id="ladder_master", name="사다리 장인", desc="스텝 계열 족보 점수 계산 시:\n+80 칩 보너스", price=5},
-        {type="joker", id="gold_rush", name="골드 러시", desc="라운드 종료 시\n+$3 추가 골드 획득", price=5},
-        
-        -- 덱 조작
-        {type="deck_add", colorName="Red", colorVal={0.92,0.22,0.25}, name="빨간색 추가", desc="빨간색 카드 1장을\n덱에 영구적으로 추가", price=2},
-        {type="deck_add", colorName="Black", colorVal={0.12,0.12,0.16}, name="검은색 추가", desc="검은색 카드 1장을\n덱에 영구적으로 추가", price=2},
-        {type="deck_remove", name="카드 제거", desc="무작위 카드 1장을\n덱에서 영구적으로 제거", price=3},
+        -- 색 규칙 강화
+        {type="upgrade", hand="Mini Mono", name="세 친구 반짝임", desc="세 친구 규칙 +1\n(+15 별, +1.5 콤보)", price=3},
+        {type="upgrade", hand="Half Mono", name="네 친구 반짝임", desc="네 친구 규칙 +1\n(+25 별, +2 콤보)", price=3},
+        {type="upgrade", hand="Tower", name="색 탑 반짝임", desc="색 탑 규칙 +1\n(+40 별, +3 콤보)", price=3},
+        {type="upgrade", hand="Half Mirror", name="작은 거울 반짝임", desc="작은 거울 규칙 +1\n(+30 별, +2.5 콤보)", price=3},
+        {type="upgrade", hand="Grand Mirror", name="큰 거울 반짝임", desc="큰 거울 규칙 +1\n(+80 별, +8 콤보)", price=3},
+        {type="upgrade", hand="Half Step", name="작은 계단 반짝임", desc="작은 계단 규칙 +1\n(+35 별, +3 콤보)", price=3},
+        {type="upgrade", hand="Perfect Ladder", name="무지개 계단 반짝임", desc="무지개 계단 규칙 +1\n(+60 별, +5 콤보)", price=3},
+
+        -- 도우미
+        {type="joker", id="shiny_eye", name="반짝이는 눈", desc="위에 하양이 있으면\n+40 별", price=6},
+        {type="joker", id="dark_side", name="밤빛 친구", desc="위에 검정이 있으면\n+4 콤보", price=6},
+        {type="joker", id="mirror_shield", name="거울 방패", desc="거울 규칙이 나오면\nx1.5 콤보", price=6},
+        {type="joker", id="rainbow", name="무지개", desc="다른 색이 4종류\n이상이면\n+50 별, +5 콤보", price=7},
+        {type="joker", id="ladder_master", name="계단 대장", desc="계단 규칙이 나오면\n+80 별", price=5},
+        {type="joker", id="gold_rush", name="코인 주머니", desc="관문 종료 시\n+$3 코인 추가", price=5},
+
+        -- 색친구 주머니 조정
+        {type="deck_add", colorName="Red", colorVal={0.92,0.22,0.25}, name="빨강 추가", desc="빨강 색친구 1개를\n주머니에 계속 추가", price=2},
+        {type="deck_add", colorName="Black", colorVal={0.12,0.12,0.16}, name="검정 추가", desc="검정 색친구 1개를\n주머니에 계속 추가", price=2},
+        {type="deck_remove", name="색친구 줄이기", desc="무작위 색친구 1개를\n주머니에서 줄이기", price=3},
     }
     
-    -- 보유 조커 필터링
+    -- 보유 도우미 필터링
     local temp = {}
     for _, item in ipairs(pool) do
         local owned = false
@@ -518,12 +645,19 @@ end
 -- 상점 아이템 구매
 function G.buyItem(idx)
     local item = G.shopItems[idx]
-    if not item or item.sold then return false, "이미 판매되었습니다" end
-    if G.gold < item.price then return false, "골드가 부족합니다" end
+    if not item or item.sold then
+        G.notice("이미 가져간 물건이에요", "warn")
+        return false, "이미 판매되었습니다"
+    end
+    if G.gold < item.price then
+        G.notice("코인이 부족해요", "warn")
+        return false, "코인이 부족합니다"
+    end
     
     if item.type == "joker" then
         if #G.jokers >= 3 then
-            return false, "조커 슬롯이 가득 찼습니다 (최대 3)"
+            G.notice("도우미 자리가 가득 찼어요", "warn")
+            return false, "도우미 자리가 가득 찼습니다 (최대 3)"
         end
         table.insert(G.jokers, {id=item.id, name=item.name, desc=item.desc})
     elseif item.type == "upgrade" then
@@ -539,7 +673,8 @@ function G.buyItem(idx)
         if #G.deckConfig > 7 then
             table.remove(G.deckConfig, love.math.random(1, #G.deckConfig))
         else
-            return false, "덱에 카드가 너무 적습니다"
+            G.notice("주머니가 너무 작아요", "warn")
+            return false, "주머니에 색친구가 너무 적습니다"
         end
     end
     
@@ -547,10 +682,11 @@ function G.buyItem(idx)
     item.sold = true
     require("sound").play("clear")
     G.shake = G.shake + 4
+    G.notice("가져왔어요", "ok")
     return true
 end
 
--- 상점 나가기 및 다음 블라인드 적용
+-- 상점 나가기 및 다음 관문 적용
 function G.exitShop()
     G.stage = G.stage + 1
     if G.stage > 3 then
@@ -558,7 +694,7 @@ function G.exitShop()
         G.ante = G.ante + 1
     end
     
-    -- 보스 블라인드 기믹 랜덤 결정
+    -- 특별 관문 규칙 랜덤 결정
     if G.stage == 3 then
         local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
         G.bossGimmick = gimmicks[love.math.random(1, #gimmicks)]
@@ -577,7 +713,7 @@ function G.update(dt)
         if a.t >= a.dur then G.slotAnim[i] = nil end
     end
     
-    -- 라운드 진입 배너 애니메이션
+    -- 관문 진입 배너 애니메이션
     if G.roundStartAnim.active then
         G.roundStartAnim.t = G.roundStartAnim.t + dt
         if G.roundStartAnim.t >= G.roundStartAnim.dur then
@@ -604,6 +740,11 @@ function G.update(dt)
         end
     end
     
+    -- 짧은 피드백 메시지
+    if G.noticeTimer > 0 then
+        G.noticeTimer = math.max(0, G.noticeTimer - dt)
+    end
+
     -- 부드러운 스코어
     G.dScore = G.dScore + (G.score - G.dScore) * math.min(1, dt * 6)
     if math.abs(G.dScore - G.score) < 1 then G.dScore = G.score end
