@@ -35,18 +35,8 @@ function Tile.drawCards(deckList, count)
             c.sel = false
             c.spawnT = love.timer.getTime()
             
-            -- 18% 확률로 특별 에디션 지정 (포일 6%, 홀로 6%, 골드 6%)
             if not c.edition then
-                local r = love.math.random()
-                if r < 0.06 then
-                    c.edition = "foil"      -- 포일 (별 +15)
-                elseif r < 0.12 then
-                    c.edition = "holo"      -- 홀로 (콤보 +3)
-                elseif r < 0.18 then
-                    c.edition = "gold"      -- 골드 (즉시 코인 +$1)
-                else
-                    c.edition = "normal"
-                end
+                c.edition = "normal"
             end
             
             table.insert(drawn, c)

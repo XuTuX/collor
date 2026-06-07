@@ -194,6 +194,136 @@ function PatternChecker.checkStep(boardTable)
     return results
 end
 
+-- TWINS: 인접한 카드들이 같은 색 쌍을 이루는 경우 검출
+function PatternChecker.checkTwins(boardTable)
+    local results = {}
+    local n = boardLen(boardTable)
+    
+    local function checkTwinsSymmetry(si, length)
+        local ei = si + length - 1
+        if ei > n then return false end
+        for i = si, ei do 
+            if not boardTable[i] then return false end 
+        end
+        
+        local uniqueColors = {}
+        local colorCount = 0
+        for j = 0, length/2 - 1 do
+            local idx1 = si + j * 2
+            local idx2 = si + j * 2 + 1
+            if boardTable[idx1].name ~= boardTable[idx2].name then
+                return false
+            end
+            local col = boardTable[idx1].name
+            if not uniqueColors[col] then
+                uniqueColors[col] = true
+                colorCount = colorCount + 1
+            end
+        end
+        return colorCount >= 2
+    end
+    
+    local function makePatternString(si, length)
+        local p = ""
+        for i = si, si + length - 1 do 
+            p = p .. getShortName(boardTable[i].name) 
+        end
+        return p
+    end
+    
+    local function getIndices(si, length)
+        local indices = {}
+        for i = si, si + length - 1 do 
+            table.insert(indices, i) 
+        end
+        return indices
+    end
+    
+    -- 세 쌍둥이 (6장)
+    if n >= 6 then
+        for start = 1, n - 6 + 1 do
+            if checkTwinsSymmetry(start, 6) then
+                table.insert(results, {cat="TWINS", name="Triple Twins", chips=100, mult=8, pat=makePatternString(start, 6), idx=getIndices(start, 6)})
+                return results
+            end
+        end
+    end
+    
+    -- 쌍둥이 (4장)
+    if n >= 4 then
+        for start = 1, n - 4 + 1 do
+            if checkTwinsSymmetry(start, 4) then
+                table.insert(results, {cat="TWINS", name="Double Twins", chips=45, mult=4, pat=makePatternString(start, 4), idx=getIndices(start, 4)})
+                return results
+            end
+        end
+    end
+    
+    return results
+end
+
+-- ZIGZAG: 두 색이 번갈아가며 나타나는 교대 패턴 검출
+function PatternChecker.checkZigzag(boardTable)
+    local results = {}
+    local n = boardLen(boardTable)
+    
+    local function checkAlternating(si, length)
+        local ei = si + length - 1
+        if ei > n then return false end
+        for i = si, ei do 
+            if not boardTable[i] then return false end 
+        end
+        
+        local c1 = boardTable[si].name
+        local c2 = boardTable[si + 1].name
+        if c1 == c2 then return false end
+        
+        for i = 0, length - 1 do
+            local expected = (i % 2 == 0) and c1 or c2
+            if boardTable[si + i].name ~= expected then
+                return false
+            end
+        end
+        return true
+    end
+    
+    local function makePatternString(si, length)
+        local p = ""
+        for i = si, si + length - 1 do 
+            p = p .. getShortName(boardTable[i].name) 
+        end
+        return p
+    end
+    
+    local function getIndices(si, length)
+        local indices = {}
+        for i = si, si + length - 1 do 
+            table.insert(indices, i) 
+        end
+        return indices
+    end
+    
+    -- 큰 지그재그 (7장 전체 교대)
+    if n >= 7 then
+        if checkAlternating(1, 7) then
+            table.insert(results, {cat="ZIGZAG", name="Grand Zigzag", chips=180, mult=14, pat=makePatternString(1, 7), idx=getIndices(1, 7)})
+            return results
+        end
+    end
+    
+    -- 작은 지그재그 (5~6장 교대)
+    for length = math.min(6, n), 5, -1 do
+        for start = 1, n - length + 1 do
+            if checkAlternating(start, length) then
+                table.insert(results, {cat="ZIGZAG", name="Mini Zigzag", chips=65, mult=5, pat=makePatternString(start, length), idx=getIndices(start, length)})
+                return results
+            end
+        end
+    end
+    
+    return results
+end
+
 -- 보드 전체 평가 및 규칙 감지 결과 수집
 function PatternChecker.evaluate(boardTable)
     local detected = {}
@@ -205,6 +335,12 @@ function PatternChecker.evaluate(boardTable)
         table.insert(detected, x) 
     end
     for _, x in ipairs(PatternChecker.checkStep(boardTable)) do 
+        table.insert(detected, x) 
+    end
+    for _, x in ipairs(PatternChecker.checkTwins(boardTable)) do 
+        table.insert(detected, x) 
+    end
+    for _, x in ipairs(PatternChecker.checkZigzag(boardTable)) do 
         table.insert(detected, x) 
     end
     

@@ -23,17 +23,17 @@ function Button.txtC(s, cx, y, col, font)
     Button.txt(s, cx - w / 2, y, col)
 end
 
--- 버튼 그리기 (UI.button 로직 완벽 보존)
+-- 버튼 그리기 (모던 미니멀 스타일)
 function Button.draw(x, y, w, h, label, active, hover, font)
     local hud = require("ui.hud")
     font = font or hud.fM
     if not font then return end
     
-    -- 1. 버튼 밑 그림자
-    love.graphics.setColor(0, 0, 0, 0.5)
-    rr("fill", x + 3, y + 5, w, h, 8)
+    -- 1. 부드러운 미세 그림자
+    love.graphics.setColor(0.08, 0.12, 0.22, 0.08)
+    rr("fill", x, y + 3, w, h, 8)
     
-    -- 2. 버튼 기본 판
+    -- 2. 버튼 몸체
     if active then
         love.graphics.setColor(hover and P.btnRH or P.btnR)
     else
@@ -41,51 +41,52 @@ function Button.draw(x, y, w, h, label, active, hover, font)
     end
     rr("fill", x, y, w, h, 8)
     
-    -- 3. 상단 하이라이트 빔
-    love.graphics.setColor(1, 1, 1, active and 0.25 or 0.1)
-    rr("fill", x, y, w, h * 0.3, 8)
+    -- 3. 미세 하이라이트
+    love.graphics.setColor(1, 1, 1, active and 0.15 or 0.05)
+    rr("fill", x, y, w, h * 0.25, 8)
     
-    -- 4. 버튼 외곽선 테두리
+    -- 4. 얇은 테두리
     if hover and active then
-        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.setColor(1, 1, 1, 0.6)
+        love.graphics.setLineWidth(1.8)
     else
-        love.graphics.setColor(0, 0, 0, 0.8)
+        love.graphics.setColor(0, 0, 0, 0.06)
+        love.graphics.setLineWidth(1)
     end
-    love.graphics.setLineWidth(hover and active and 3 or 2)
     rr("line", x, y, w, h, 8)
     
-    -- 5. 버튼 텍스트 (그림자 포함 입체)
+    -- 5. 버튼 텍스트
     love.graphics.setFont(font)
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.print(label, x + (w - font:getWidth(label)) / 2 + 1, y + (h - font:getHeight()) / 2 + 2)
-    love.graphics.setColor(active and P.white or {0.6, 0.6, 0.6})
+    if not active then
+        love.graphics.setColor(0.45, 0.49, 0.55)
+    else
+        love.graphics.setColor(P.white)
+    end
     love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
 end
 
--- 알약 배지(Pill) 그리기 (UI.pill 로직 완벽 보존)
+-- 알약 배지(Pill) 그리기
 function Button.pill(x, y, w, h, label, col, font)
     local hud = require("ui.hud")
     font = font or hud.fS
     if not font then return end
     
-    -- 1. 알약 그림자
-    love.graphics.setColor(0, 0, 0, 0.4)
-    rr("fill", x + 2, y + 2, w, h, math.floor(h / 2))
+    local r = math.floor(h / 2)
     
-    -- 2. 알약 몸체 판
+    -- 1. 미세 그림자
+    love.graphics.setColor(0, 0, 0, 0.05)
+    rr("fill", x, y + 2, w, h, r)
+    
+    -- 2. 몸체 판
     love.graphics.setColor(col[1], col[2], col[3], 1.0)
-    rr("fill", x, y, w, h, math.floor(h / 2))
+    rr("fill", x, y, w, h, r)
     
-    -- 3. 상단 하이라이트
-    love.graphics.setColor(1, 1, 1, 0.25)
-    rr("fill", x, y, w, h * 0.35, math.floor(h / 2))
+    -- 3. 얇은 테두리선
+    love.graphics.setColor(1, 1, 1, 0.15)
+    love.graphics.setLineWidth(1)
+    rr("line", x, y, w, h, r)
     
-    -- 4. 테두리선
-    love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.setLineWidth(1.5)
-    rr("line", x, y, w, h, math.floor(h / 2))
-    
-    -- 5. 내부 텍스트
+    -- 4. 내부 텍스트 (텍스트 가독성을 위해 어두운 계열 색상이면 하양, 밝은 계열이면 알맞게 조정하지만 기본 화이트 유지)
     love.graphics.setColor(P.white)
     love.graphics.setFont(font)
     love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
@@ -96,10 +97,12 @@ function Button.catCol(c)
     if c == "MONO"   then return P.cMono end
     if c == "MIRROR" then return P.cMirr end
     if c == "STEP"   then return P.cStep end
+    if c == "TWINS"  then return P.cTwins end
+    if c == "ZIGZAG" then return P.cZigzag end
     return P.text
 end
 
--- 칩 배지 그리기 (UI.chipB 로직 완벽 보존)
+-- 칩 배지 그리기
 function Button.chipB(cx, cy, val)
     local hud = require("ui.hud")
     local font = hud.fM
@@ -110,7 +113,7 @@ function Button.chipB(cx, cy, val)
     Button.pill(cx - tw / 2, cy - 11, tw, 22, s, P.chip, font)
 end
 
--- 콤보(배수) 배지 그리기 (UI.multB 로직 완벽 보존)
+-- 콤보(배수) 배지 그리기
 function Button.multB(cx, cy, val)
     local hud = require("ui.hud")
     local font = hud.fM
@@ -122,3 +125,4 @@ function Button.multB(cx, cy, val)
 end
 
 return Button
+

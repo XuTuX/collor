@@ -92,7 +92,7 @@ function AnimationSystem.update(dt, G)
                 local card = a.cards[a.idx]
                 if card then
                     -- 보드에 복제된 카드 배치
-                    G.board[a.idx] = { name = card.name, color = { card.color[1], card.color[2], card.color[3] } }
+                    G.board[a.idx] = { name = card.name, color = { card.color[1], card.color[2], card.color[3] }, edition = card.edition }
                     AnimationSystem.startSlotAnim(a.idx, 0.28)
                     G.shake = G.shake + 3
                     

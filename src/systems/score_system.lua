@@ -151,6 +151,7 @@ function ScoreSystem.update(dt, G)
             sc.idx = sc.idx + 1
             sc.timer = 0
             sc.hopIdx = {} -- 뜀박질 상태 클리어
+            if G then G.executingCardIdx = -1 end -- 활성화 표정 초기화
             
             if sc.idx <= #sc.events then
                 local e = sc.events[sc.idx]
@@ -159,7 +160,14 @@ function ScoreSystem.update(dt, G)
                     sc.tChips = sc.tChips + e.chips
                     sc.tMult = sc.tMult + (e.mult or 0)
                     sc.hopIdx[e.idx] = true
-                    Audio.play("tick")
+                    if G then 
+                        G.executingCardIdx = e.idx -- 현재 계산 중인 카드 표정 변경용
+                        G.chipScale = 1.30
+                        if (e.mult or 0) > 0 then
+                            G.multScale = 1.30
+                        end
+                    end
+                    Audio.play("place")
                     G.shake = G.shake + 2
                     
                     local sx = C.BX + (e.idx-1)*(C.BSW+C.BGAP) + C.BSW/2
@@ -182,6 +190,10 @@ function ScoreSystem.update(dt, G)
                 elseif e.type == "diversity" then
                     sc.tChips = sc.tChips + e.chips
                     sc.tMult = sc.tMult + e.mult
+                    if G then
+                        G.chipScale = 1.35
+                        G.multScale = 1.35
+                    end
                     G.notice(e.count.."색 보너스! (+"..e.chips..", x"..e.mult..")", "ok")
                     Audio.play("reveal")
                     G.shake = G.shake + 5
@@ -194,11 +206,16 @@ function ScoreSystem.update(dt, G)
                 elseif e.type == "rule" then
                     sc.tChips = sc.tChips + e.rule.chips
                     sc.tMult = sc.tMult + e.rule.mult
+                    if G then
+                        G.chipScale = 1.40
+                        G.multScale = 1.40
+                    end
                     table.insert(sc.revealed, e.rule)
                     Audio.play("reveal")
                     G.shake = G.shake + 8
                     for _, hi in ipairs(e.rule.idx or {}) do 
                         sc.hopIdx[hi] = true 
+                        if G then G.executingCardIdx = hi end -- 족보 기여 카드 표정 윙크
                     end
                     
                     Effect.spawnTextParticle(C.HCX, C.BY - 50, "+" .. e.rule.chips .. "  x" .. e.rule.mult, C.P.mult)
@@ -207,6 +224,10 @@ function ScoreSystem.update(dt, G)
                     sc.tChips = sc.tChips + e.chips
                     sc.tMult = sc.tMult + e.mult
                     sc.tMult = sc.tMult * e.xmult
+                    if G then
+                        if e.chips > 0 then G.chipScale = 1.35 end
+                        if e.mult > 0 or e.xmult > 1 then G.multScale = 1.35 end
+                    end
                     G.notice(e.name.." 발동!", "ok")
                     Audio.play("reveal")
                     G.shake = G.shake + 5
@@ -221,6 +242,12 @@ function ScoreSystem.update(dt, G)
                     G.rndScore = math.floor(sc.tChips * sc.tMult)
                     sc.phase = "total"
                     sc.timer = 0
+                    if G then 
+                        G.executingCardIdx = -1 
+                        G.chipScale = 1.45
+                        G.multScale = 1.45
+                    end
+                    Audio.play("reveal")
                 end
             end
         end
@@ -239,8 +266,10 @@ function ScoreSystem.update(dt, G)
         if math.floor(sc.dTotal) > sc.prevDChips then
             Audio.play("tick")
             sc.prevDChips = math.floor(sc.dTotal)
+            G.shake = G.shake + 0.5 -- 롤링 카운팅 중 흔들림
         end
     end
 end
 
 return ScoreSystem
+

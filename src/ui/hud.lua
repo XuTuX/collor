@@ -7,11 +7,12 @@ local P = C.P
 local Panel = require("ui.panel")
 local Button = require("ui.button")
 local Modifier = require("entities/modifier")
+local PData = require("data.patterns")
 
 -- 폰트 객체 선언 (의존성 단일화)
 HUD.fS, HUD.fM, HUD.fL, HUD.fX, HUD.fXX = nil, nil, nil, nil, nil
 
--- 폰트 초기화 (ui.lua 로직 완벽 보존)
+-- 폰트 초기화
 function HUD.initFonts()
     local fontPath = "assets/fonts/NanumGothic.ttf"
     local fontBoldPath = "assets/fonts/NanumGothic-Bold.ttf"
@@ -19,17 +20,17 @@ function HUD.initFonts()
     local success, _ = pcall(function()
         HUD.fS  = love.graphics.newFont(fontPath, 13)
         HUD.fM  = love.graphics.newFont(fontBoldPath, 16)
-        HUD.fL  = love.graphics.newFont(fontBoldPath, 22)
-        HUD.fX  = love.graphics.newFont(fontBoldPath, 28)
-        HUD.fXX = love.graphics.newFont(fontBoldPath, 44)
+        HUD.fL  = love.graphics.newFont(fontBoldPath, 20)
+        HUD.fX  = love.graphics.newFont(fontBoldPath, 26)
+        HUD.fXX = love.graphics.newFont(fontBoldPath, 36)
     end)
     
     if not success then
         HUD.fS  = love.graphics.newFont(13)
         HUD.fM  = love.graphics.newFont(16)
-        HUD.fL  = love.graphics.newFont(22)
-        HUD.fX  = love.graphics.newFont(28)
-        HUD.fXX = love.graphics.newFont(44)
+        HUD.fL  = love.graphics.newFont(20)
+        HUD.fX  = love.graphics.newFont(26)
+        HUD.fXX = love.graphics.newFont(36)
         print("Warning: Failed to load custom Korean font. Using default font.")
     end
 end
@@ -55,7 +56,6 @@ end
 local function countColors(list)
     local counts = {}
     for _, c in ipairs(C.COLORS or {}) do counts[c.name] = 0 end
-    -- COLORS가 없는 경우에 대비한 동적 셋업
     counts["Red"] = 0; counts["Orange"] = 0; counts["Yellow"] = 0; counts["White"] = 0; counts["Black"] = 0;
     
     for _, item in ipairs(list or {}) do
@@ -66,136 +66,337 @@ local function countColors(list)
     return counts
 end
 
--- 상단 정보 판넬 그리기 (S.topUI 로직 완벽 보존)
+-- 좌측 통합 정보 패널 그리기
 function HUD.drawTopUI(G)
-    local x, y, w, h = C.LX, C.LY, C.LW, 220
-    Panel.draw(x, y, w, h, 12)
+    local x, y, w, h = C.LX, C.LY, C.LW, C.LH
+    Panel.draw(x, y, w, h, 14)
 
-    Button.txt("컬러 퍼즐 7", x + 18, y + 14, P.text, HUD.fL)
+    -- 타이틀 및 재시작 버튼
+    Button.txt("컬러 퍼즐 7", x + 20, y + 22, P.text, HUD.fL)
     
-    -- 재시작 버튼 감지
     local mx, my = love.mouse.getPosition()
-    local btnW, btnH = 56, 24
-    local bx, by = x + w - 74, y + 14
+    local btnW, btnH = 58, 26
+    local bx, by = x + w - 78, y + 20
     local hovReset = mx >= bx and mx <= bx + btnW and my >= by and my <= by + btnH
     Button.draw(bx, by, btnW, btnH, "재시작", true, hovReset, HUD.fS)
     
-    Button.pill(x + 18, y + 48, 78, 24, "월드 " .. tostring(G.ante), P.cMirr, HUD.fS)
-    Button.pill(x + 104, y + 48, 116, 24, getGateName(G.stage), P.btnR, HUD.fS)
+    -- 스테이지 정보 배지
+    local stageY = y + 62
+    Button.pill(x + 20, stageY, 76, 24, "월드 " .. tostring(G.ante), P.cMirr, HUD.fS)
+    Button.pill(x + 102, stageY, 100, 24, getGateName(G.stage), P.btnR, HUD.fS)
 
-    -- 통계 스탯 박스 헬퍼
-    local function statBox(sx, sy, label, value, col)
-        love.graphics.setColor(0.25, 0.32, 0.44, 0.06)
-        love.graphics.rectangle("fill", sx, sy + 2, 100, 60, 8, 8)
-        love.graphics.setColor(1, 1, 1, 0.86)
-        love.graphics.rectangle("fill", sx, sy, 100, 60, 8, 8)
-        love.graphics.setColor(P.panelBd)
-        love.graphics.setLineWidth(1)
-        love.graphics.rectangle("line", sx, sy, 100, 60, 8, 8)
-        Button.txt(label, sx + 12, sy + 7, P.dim, HUD.fS)
+    -- 보스 기믹 텍스트 표시
+    if G.stage == 3 and G.bossGimmick ~= "none" then
+        love.graphics.setFont(HUD.fS)
+        love.graphics.setColor(P.mult)
+        local bossDesc = Modifier.getBossGimmickDesc(G.bossGimmick)
+        love.graphics.printf("규칙: " .. bossDesc, x + 20, stageY + 34, w - 40, "left")
+    end
+
+    -- 목표 점수 & 현재 점수 대형 모던 보드
+    local scoreBoxY = stageY + 68
+    local boxW = w - 40
+    
+    -- 목표 점수 라벨
+    love.graphics.setFont(HUD.fS)
+    love.graphics.setColor(P.dim)
+    love.graphics.print("목표 점수", x + 20, scoreBoxY)
+    love.graphics.setFont(HUD.fX)
+    love.graphics.setColor(P.text)
+    love.graphics.print(tostring(G.targetScore), x + 20, scoreBoxY + 18)
+
+    -- 현재 점수 라벨
+    local curScoreY = scoreBoxY + 54
+    love.graphics.setFont(HUD.fS)
+    love.graphics.setColor(P.dim)
+    love.graphics.print("현재 점수", x + 20, curScoreY)
+    
+    love.graphics.setFont(HUD.fX)
+    local scoreColor = G.roundCleared and P.cMono or P.gold
+    love.graphics.setColor(scoreColor)
+    love.graphics.print(tostring(math.floor(G.dScore)), x + 20, curScoreY + 18)
+
+    -- ───────────────────────────────────────────
+    -- Balatro 스타일 체인(별) x 콤보(배수) 대형 대시보드
+    -- ───────────────────────────────────────────
+    local balatroY = curScoreY + 70
+    
+    -- 구분선
+    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.4)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(x + 20, balatroY, x + w - 20, balatroY)
+    
+    local dashY = balatroY + 20
+    local dashH = 70
+    
+    -- 득점 연출 스케일 값 로드
+    local ScoreSys = require("systems.score_system")
+    local scState = ScoreSys.getState()
+    local chipVal = math.floor(scState.dChips)
+    local multVal = math.floor(scState.dMult)
+    
+    local cScale = G.chipScale or 1.0
+    local mScale = G.multScale or 1.0
+    
+    -- 파란색 칩(체인) 박스
+    local boxSizeW = 100
+    local chipBoxX = x + 20
+    love.graphics.push()
+    love.graphics.translate(chipBoxX + boxSizeW/2, dashY + dashH/2)
+    love.graphics.scale(cScale, cScale)
+    love.graphics.translate(-(chipBoxX + boxSizeW/2), -(dashY + dashH/2))
+    
+    love.graphics.setColor(0, 0, 0, 0.05)
+    love.graphics.rectangle("fill", chipBoxX, dashY + 3, boxSizeW, dashH, 8, 8)
+    love.graphics.setColor(P.chip)
+    love.graphics.rectangle("fill", chipBoxX, dashY, boxSizeW, dashH, 8, 8)
+    
+    love.graphics.setFont(HUD.fS)
+    Button.txtC("체인 (별)", chipBoxX + boxSizeW/2, dashY + 8, P.white)
+    love.graphics.setFont(HUD.fL)
+    Button.txtC(tostring(chipVal), chipBoxX + boxSizeW/2, dashY + 32, P.white)
+    love.graphics.pop()
+
+    -- 중앙 곱하기 'X' 문자
+    love.graphics.setFont(HUD.fX)
+    love.graphics.setColor(P.dim)
+    local xText = "X"
+    love.graphics.print(xText, x + 132, dashY + dashH/2 - HUD.fX:getHeight()/2)
+
+    -- 빨간색 배수(콤보) 박스
+    local multBoxX = x + 160
+    love.graphics.push()
+    love.graphics.translate(multBoxX + boxSizeW/2, dashY + dashH/2)
+    love.graphics.scale(mScale, mScale)
+    love.graphics.translate(-(multBoxX + boxSizeW/2), -(dashY + dashH/2))
+    
+    love.graphics.setColor(0, 0, 0, 0.05)
+    love.graphics.rectangle("fill", multBoxX, dashY + 3, boxSizeW, dashH, 8, 8)
+    love.graphics.setColor(P.mult)
+    love.graphics.rectangle("fill", multBoxX, dashY, boxSizeW, dashH, 8, 8)
+    
+    love.graphics.setFont(HUD.fS)
+    Button.txtC("콤보 (배수)", multBoxX + boxSizeW/2, dashY + 8, P.white)
+    love.graphics.setFont(HUD.fL)
+    local mText = "x" .. tostring(multVal)
+    Button.txtC(mText, multBoxX + boxSizeW/2, dashY + 32, P.white)
+    love.graphics.pop()
+
+    -- ───────────────────────────────────────────
+    -- 남은 기회 및 코인 통계 (좌측 패널 하단 배치)
+    -- ───────────────────────────────────────────
+    local statY = dashY + dashH + 34
+    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.4)
+    love.graphics.line(x + 20, statY - 14, x + w - 20, statY - 14)
+
+    local function leftStatRow(label, val, col, sy)
+        love.graphics.setFont(HUD.fS)
+        love.graphics.setColor(P.dim)
+        love.graphics.print(label, x + 20, sy)
+        
         love.graphics.setFont(HUD.fL)
         love.graphics.setColor(col)
-        love.graphics.print(value, sx + 12, sy + 26)
+        local valStr = tostring(val)
+        love.graphics.print(valStr, x + w - 20 - HUD.fL:getWidth(valStr), sy - 2)
     end
 
-    statBox(x + 18, y + 84, "목표", tostring(G.targetScore), P.mult)
-    local scoreColor = G.roundCleared and P.cMono or P.gold
-    statBox(x + 126, y + 84, "현재 점수", tostring(math.floor(G.dScore)), scoreColor)
-    statBox(x + 18, y + 152, "코인", "$" .. tostring(G.gold), P.gold)
-    statBox(x + 126, y + 152, "남은 실행", G.execLeft .. "/4", P.cStep)
+    leftStatRow("남은 실행", G.execLeft .. " / 4", P.cStep, statY)
+    leftStatRow("남은 바꾸기", G.discLeft .. " / " .. C.MAXDISC, P.gold, statY + 32)
+    leftStatRow("보유 코인", "$" .. tostring(G.gold), P.success, statY + 64)
 end
 
--- 족보 가이드표 그리기 (S.cheatSheet 로직 완벽 보존)
-function HUD.drawCheatSheet()
-    local cx, cy, cw, ch = C.LX, C.LY + 240, C.LW, C.LH - 240
-    Panel.draw(cx, cy, cw, ch, 10)
-    Button.txt("색 규칙", cx + 14, cy + 10, P.text, HUD.fM)
-    Button.txt("별 / 콤보", cx + cw - 78, cy + 13, P.dim, HUD.fS)
-    love.graphics.setFont(HUD.fS)
+-- 우측 패널 안의 색 규칙 가이드 테이블 그리기
+function HUD.drawCheatSheet(G)
+    local cx, cy, cw, ch = C.RX, C.RY + 200, C.RW, C.RH - 200
+    Panel.draw(cx, cy, cw, ch, 12)
+    Button.txt("색 규칙", cx + 18, cy + 14, P.text, HUD.fM)
+    
+    -- Title underline
+    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.3)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(cx + 18, cy + 34, cx + cw - 18, cy + 34)
+    
     local y = cy + 42
 
-    local function entry(cc, name, desc, chips, mult)
-        love.graphics.setColor(cc)
-        love.graphics.circle("fill", cx + 16, y + 6, 3)
+    local function entry(cc, name, desc, statsKey)
+        local stats = (G and G.handStats) and G.handStats[statsKey] or PData.handStatsTemplate[statsKey]
+        local chips = stats.chips
+        local mult = stats.mult
+        
+        -- Colored bullet
+        love.graphics.setColor(cc[1], cc[2], cc[3], 0.8)
+        love.graphics.circle("fill", cx + 22, y + 8, 3.5)
+        
+        -- Name
+        love.graphics.setFont(HUD.fS)
         love.graphics.setColor(P.text)
-        love.graphics.print(name, cx + 26, y)
-        love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.50)
-        love.graphics.print(desc, cx + 26, y + 14)
-        Button.pill(cx + cw - 80, y + 1, 34, 15, tostring(chips), P.chip, HUD.fS)
-        Button.pill(cx + cw - 42, y + 1, 34, 15, "x" .. tostring(mult), P.mult, HUD.fS)
-        y = y + 32
+        love.graphics.print(name, cx + 32, y)
+        
+        -- Dim description
+        love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.5)
+        local nw = HUD.fS:getWidth(name)
+        love.graphics.print(desc, cx + 32 + nw + 6, y)
+        
+        -- Right-aligned pills
+        local pw, ph = 32, 16
+        local mx = cx + cw - 18 - pw
+        local cpx = mx - pw - 4
+        Button.pill(cpx, y + 1, pw, ph, tostring(chips), P.chip, HUD.fS)
+        Button.pill(mx, y + 1, pw, ph, "x" .. tostring(mult), P.mult, HUD.fS)
+        
+        y = y + 23
     end
 
-    love.graphics.setColor(P.cMono); love.graphics.print("같은색", cx + 14, y); y = y + 16
-    entry(P.cMono, "세 친구", "같은색 3", 30, 3)
-    entry(P.cMono, "네 친구", "같은색 4", 60, 5)
-    entry(P.cMono, "색 탑", "같은색 5+", 150, 12)
-    y = y + 6
-    love.graphics.setColor(P.cMirr); love.graphics.print("거울", cx + 14, y); y = y + 16
-    entry(P.cMirr, "작은 거울", "5~6개 대칭", 100, 8)
-    entry(P.cMirr, "큰 거울", "7개 대칭", 400, 40)
-    y = y + 6
-    love.graphics.setColor(P.cStep); love.graphics.print("계단", cx + 14, y); y = y + 16
-    entry(P.cStep, "작은 계단", "1-2-3 모양", 120, 10)
-    entry(P.cStep, "무지개 계단", "1-2-3-1 모양", 300, 25)
-    y = y + 12
-    love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.2)
-    love.graphics.line(cx + 14, y, cx + cw - 14, y); y = y + 8
-    love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.5)
-    love.graphics.print("최종 점수 = 별 x 콤보", cx + 14, y)
+    local function sectionHeader(cc, title)
+        if y > cy + 45 then
+            y = y + 4
+            love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.15)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(cx + 18, y, cx + cw - 18, y)
+            y = y + 6
+        end
+        
+        love.graphics.setColor(cc)
+        love.graphics.setFont(HUD.fS)
+        love.graphics.print(title, cx + 18, y)
+        y = y + 18
+    end
+
+    sectionHeader(P.cMono, "같은색")
+    entry(P.cMono, "세 친구", "3장", "Mini Mono")
+    entry(P.cMono, "네 친구", "4장", "Half Mono")
+    entry(P.cMono, "색 탑", "5+", "Tower")
+    
+    sectionHeader(P.cMirr, "거울")
+    entry(P.cMirr, "작은 거울", "5~6", "Half Mirror")
+    entry(P.cMirr, "큰 거울", "7장", "Grand Mirror")
+    
+    sectionHeader(P.cStep, "계단")
+    entry(P.cStep, "작은 계단", "", "Half Step")
+    entry(P.cStep, "무지개 계단", "", "Perfect Ladder")
+    
+    sectionHeader(P.cTwins, "쌍둥이")
+    entry(P.cTwins, "쌍둥이", "2쌍", "Double Twins")
+    entry(P.cTwins, "세 쌍둥이", "3쌍", "Triple Twins")
+    
+    sectionHeader(P.cZigzag, "지그재그")
+    entry(P.cZigzag, "작은 지그재그", "", "Mini Zigzag")
+    entry(P.cZigzag, "큰 지그재그", "7장", "Grand Zigzag")
+    
+    -- Bottom formula
+    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.2)
+    love.graphics.line(cx + 18, cy + ch - 30, cx + cw - 18, cy + ch - 30)
+    
+    love.graphics.setFont(HUD.fS)
+    love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.7)
+    love.graphics.print("최종 점수 = 체인 x 콤보", cx + 18, cy + ch - 23)
 end
 
--- 주머니 전체보기용 조그만 카드 조각 그리기
-local function drawBagPiece(x, y, w, h, colorInfo, state)
+local function drawBagPiece(x, y, w, h, colorInfo, state, edition)
     local col = colorInfo.color
-    local alpha = state == "gone" and 0.24 or 0.96
-    local fill = state == "left" and P.slotHov or P.panel
-    if state == "picked" then fill = {0.98, 0.84, 0.22} end
-    if state == "hand" then fill = {0.94, 0.98, 1.00} end
-
-    love.graphics.setColor(0.03, 0.05, 0.05, 0.30)
-    love.graphics.rectangle("fill", x + 2, y + 3, w, h, 5, 5)
-    love.graphics.setColor(fill[1], fill[2], fill[3], alpha)
-    love.graphics.rectangle("fill", x, y, w, h, 5, 5)
-    love.graphics.setColor(col[1], col[2], col[3], state == "gone" and 0.32 or 0.92)
-    love.graphics.rectangle("fill", x + 4, y + 4, w - 8, h - 8, 4, 4)
-    love.graphics.setColor(1, 1, 1, state == "gone" and 0.06 or 0.18)
-    love.graphics.line(x + 7, y + h - 8, x + w - 7, y + 8)
-    love.graphics.setColor(state == "picked" and P.btnR or P.panelBd)
-    love.graphics.setLineWidth(state == "picked" and 2.0 or 1.0)
-    love.graphics.rectangle("line", x, y, w, h, 5, 5)
+    local isGone = state == "gone"
+    local isPicked = state == "picked"
+    local isHand = state == "hand"
+    
+    local cx, cy = x + w/2, y + h/2
+    local rad = math.min(w, h)/2 - 2
+    
+    if not isGone then
+        -- Edition Aura
+        if edition == "foil" then
+            love.graphics.setColor(P.cMirr[1], P.cMirr[2], P.cMirr[3], 0.7)
+            love.graphics.circle("fill", cx, cy, rad + 3)
+            love.graphics.setColor(P.cMirr)
+            love.graphics.circle("line", cx, cy, rad + 3)
+        elseif edition == "holo" then
+            love.graphics.setColor(P.mult[1], P.mult[2], P.mult[3], 0.7)
+            love.graphics.circle("fill", cx, cy, rad + 3)
+            love.graphics.setColor(P.mult)
+            love.graphics.circle("line", cx, cy, rad + 3)
+        elseif edition == "gold" then
+            love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.7)
+            love.graphics.circle("fill", cx, cy, rad + 3)
+            love.graphics.setColor(P.gold)
+            love.graphics.circle("line", cx, cy, rad + 3)
+        end
+        
+        -- State Highlights
+        if isPicked then
+            love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.9)
+            love.graphics.setLineWidth(2.5)
+            love.graphics.circle("line", cx, cy, rad + 4)
+        elseif isHand then
+            love.graphics.setColor(0.357, 0.486, 0.980, 0.6)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.circle("line", cx, cy, rad + 3)
+        end
+        
+        -- Character Body
+        love.graphics.setColor(col)
+        love.graphics.circle("fill", cx, cy, rad)
+        if colorInfo.name == "White" then
+            love.graphics.setColor(0.7, 0.75, 0.85, 0.5)
+        else
+            love.graphics.setColor(col[1]*0.5, col[2]*0.5, col[3]*0.5, 0.8)
+        end
+        love.graphics.setLineWidth(1.5)
+        love.graphics.circle("line", cx, cy, rad)
+        
+        -- Character Eyes
+        local eyeW, eyeH = rad*0.2, rad*0.25
+        if colorInfo.name == "Black" then
+            love.graphics.setColor(0.95, 0.95, 0.98)
+        else
+            love.graphics.setColor(0.12, 0.16, 0.22)
+        end
+        love.graphics.ellipse("fill", cx - rad*0.35, cy - rad*0.1, eyeW, eyeH)
+        love.graphics.ellipse("fill", cx + rad*0.35, cy - rad*0.1, eyeW, eyeH)
+        
+        -- Eye Highlights
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.circle("fill", cx - rad*0.35 - 0.5, cy - rad*0.1 - 1.2, eyeW*0.4)
+        love.graphics.circle("fill", cx + rad*0.35 - 0.5, cy - rad*0.1 - 1.2, eyeW*0.4)
+    else
+        -- Gone / Discarded State
+        local mult = 0.65
+        if colorInfo.name == "Black" then
+            mult = 0.85
+        elseif colorInfo.name == "White" then
+            mult = 0.45
+        end
+        love.graphics.setColor(col[1]*mult, col[2]*mult, col[3]*mult, 0.25)
+        love.graphics.circle("fill", cx, cy, rad)
+        
+        love.graphics.setColor(0, 0, 0, 0.08)
+        love.graphics.setLineWidth(1)
+        love.graphics.circle("line", cx, cy, rad)
+    end
 end
 
--- 주머니 전체 오버레이 그리기 (S.bagOverlay 로직 완벽 보존)
+-- 주머니 전체 오버레이 그리기 (밝은 테마 스타일)
 function HUD.drawBagOverlay(G)
     if not G.showBag then return end
 
-    -- 반투명 흐림 배경
-    love.graphics.setColor(0.02, 0.04, 0.04, 0.76)
+    -- 반투명 밝은 그레이블루 흐림 배경
+    love.graphics.setColor(0.957, 0.965, 0.980, 0.85)
     love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
-    love.graphics.setColor(P.felt[1], P.felt[2], P.felt[3], 0.38)
-    love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
-    love.graphics.setColor(1, 1, 1, 0.035)
-    for y = 0, C.SH, 6 do
+    
+    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.15)
+    for y = 0, C.SH, 8 do
         love.graphics.line(0, y, C.SW, y)
     end
 
     local px, py, pw, ph = C.HCX - 560, 70, 1120, 590
-    love.graphics.setColor(0.95, 0.88, 0.95, 0.22)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", px - 14, py - 14, pw + 28, ph + 28, 16, 16)
-    Panel.draw(px, py, pw, ph, 12)
+    Panel.draw(px, py, pw, ph, 14)
 
     Button.txtC("주머니 전체", C.HCX, py + 22, P.text, HUD.fX)
-    love.graphics.setColor(P.btnR)
-    love.graphics.polygon("fill", C.HCX - 8, py + 6, C.HCX + 8, py + 6, C.HCX, py + 22)
 
     local mx, my = love.mouse.getPosition()
-    local closeX, closeY, closeW, closeH = C.HCX + 420, 82, 84, 32
+    local closeX, closeY, closeW, closeH = px + pw - 28 - 84, py + 20, 84, 32
     local hovClose = mx >= closeX and mx <= closeX + closeW and my >= closeY and my <= closeY + closeH
     Button.draw(closeX, closeY, closeW, closeH, "닫기", true, hovClose, HUD.fS)
 
-    -- 고유 색상 데이터 조회 (constants의 COLORS가 사라졌으므로 data/characters 데이터 활용)
+    -- 고유 색상 데이터 조회
     local CharsList = require("data.characters")
     local totalCounts = countColors(G.deckConfig)
     local leftCounts = countColors(G.deck)
@@ -210,81 +411,149 @@ function HUD.drawBagOverlay(G)
     end
 
     -- 왼쪽 통계 요약판
-    local sx, sy, sw, sh = px + 28, py + 84, 230, 390
-    love.graphics.setColor(0.02, 0.04, 0.04, 0.72)
+    local sx, sy, sw, sh = px + 28, py + 70, 240, 420
+    love.graphics.setColor(P.bg[1], P.bg[2], P.bg[3], 0.4)
     love.graphics.rectangle("fill", sx, sy, sw, sh, 8, 8)
-    love.graphics.setColor(P.slotHBd)
+    love.graphics.setColor(P.panelBd)
     love.graphics.setLineWidth(1.2)
     love.graphics.rectangle("line", sx, sy, sw, sh, 8, 8)
 
-    Button.txtC("색친구 수", sx + sw / 2, sy + 16, P.white, HUD.fL)
+    Button.txtC("색친구 수", sx + sw / 2, sy + 14, P.text, HUD.fL)
     love.graphics.setFont(HUD.fS)
-    love.graphics.setColor(0.85, 0.96, 0.92, 0.76)
-    love.graphics.print("전체", sx + 88, sy + 54)
-    love.graphics.print("남음", sx + 132, sy + 54)
-    love.graphics.print("손", sx + 176, sy + 54)
+    love.graphics.setColor(P.dim)
+    
+    local col1X = sx + 110
+    local col2X = sx + 154
+    local col3X = sx + 198
+    
+    love.graphics.print("전체", col1X - HUD.fS:getWidth("전체")/2, sy + 42)
+    love.graphics.print("남음", col2X - HUD.fS:getWidth("남음")/2, sy + 42)
+    love.graphics.print("손", col3X - HUD.fS:getWidth("손")/2, sy + 42)
 
-    local rowY = sy + 78
-    for _, colorInfo in ipairs(CharsList) do
-        local c = colorInfo.color
-        love.graphics.setColor(c)
-        love.graphics.circle("fill", sx + 28, rowY + 8, 8)
-        love.graphics.setColor(P.white)
-        love.graphics.setFont(HUD.fM)
-        love.graphics.print(HUD.getColorKoreanName(colorInfo.name), sx + 44, rowY - 1)
-        love.graphics.setFont(HUD.fM)
-        love.graphics.setColor(0.95, 0.98, 1.0)
-        love.graphics.print(tostring(totalCounts[colorInfo.name] or 0), sx + 92, rowY - 1)
-        love.graphics.setColor(P.gold)
-        love.graphics.print(tostring(leftCounts[colorInfo.name] or 0), sx + 138, rowY - 1)
-        love.graphics.setColor(P.cStep)
-        love.graphics.print(tostring(handCounts[colorInfo.name] or 0), sx + 182, rowY - 1)
-        rowY = rowY + 42
-    end
-
-    local legendY = sy + sh - 84
-    local function legend(lx, label, col)
-        love.graphics.setColor(col)
-        love.graphics.rectangle("fill", lx, legendY, 18, 12, 3, 3)
-        Button.txt(label, lx + 24, legendY - 2, P.white, HUD.fS)
-    end
-    legend(sx + 18, "남은", P.slotHov)
-    legend(sx + 92, "손", {0.94, 0.98, 1.00})
-    legend(sx + 154, "고른", {0.98, 0.84, 0.22})
-
-    -- 오른쪽 그리드 뷰
-    local gx, gy = px + 285, py + 104
+    local gy = py + 130
+    local gx = px + 350
     local cellW, cellH = 35, 48
     local gapX, gapY = 5, 12
-    local perRow = 16
+    local perRow = 18
 
     for row, colorInfo in ipairs(CharsList) do
         local y = gy + (row - 1) * (cellH + gapY)
-        Button.txt(HUD.getColorKoreanName(colorInfo.name), gx - 58, y + 15, P.white, HUD.fM)
-        local total = totalCounts[colorInfo.name] or 0
-        local left = leftCounts[colorInfo.name] or 0
-        local hand = handCounts[colorInfo.name] or 0
-        local picked = pickedCounts[colorInfo.name] or 0
         
-        for i = 1, total do
-            local state = "gone"
-            if i <= picked then
-                state = "picked"
-            elseif i <= hand then
-                state = "hand"
-            elseif i <= hand + left then
-                state = "left"
+        -- 왼쪽 요약판 행 배경
+        love.graphics.setColor(P.bg[1], P.bg[2], P.bg[3], 0.6)
+        love.graphics.rectangle("fill", sx + 10, y - 2, sw - 20, 52, 6, 6)
+        
+        local c = colorInfo.color
+        love.graphics.setColor(c)
+        love.graphics.circle("fill", sx + 28, y + 24, 8)
+        
+        love.graphics.setColor(P.text)
+        love.graphics.setFont(HUD.fM)
+        love.graphics.print(HUD.getColorKoreanName(colorInfo.name), sx + 44, y + 16)
+        
+        love.graphics.setColor(P.dim)
+        local totStr = tostring(totalCounts[colorInfo.name] or 0)
+        love.graphics.print(totStr, col1X - HUD.fM:getWidth(totStr)/2, y + 16)
+        
+        love.graphics.setColor(P.gold)
+        local leftStr = tostring(leftCounts[colorInfo.name] or 0)
+        love.graphics.print(leftStr, col2X - HUD.fM:getWidth(leftStr)/2, y + 16)
+        
+        love.graphics.setColor(P.chip)
+        local handStr = tostring(handCounts[colorInfo.name] or 0)
+        love.graphics.print(handStr, col3X - HUD.fM:getWidth(handStr)/2, y + 16)
+    end
+
+    local legendY = sy + sh - 35
+    local function legend(lx, label, col, isOutline)
+        local cx = lx + 9
+        local cy = legendY + 6
+        local r = 6
+        
+        love.graphics.setColor(col or P.slot)
+        love.graphics.circle("fill", cx, cy, r)
+        
+        if isOutline then
+            love.graphics.setColor(col)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.circle("line", cx, cy, r + 1.5)
+        else
+            love.graphics.setColor(0, 0, 0, 0.08)
+            love.graphics.circle("line", cx, cy, r)
+        end
+        Button.txt(label, lx + 24, legendY - 2, P.text, HUD.fS)
+    end
+    legend(sx + 18, "남음", P.bg, false)
+    legend(sx + 92, "손", P.chip, true)
+    legend(sx + 154, "고른", P.gold, true)
+
+    -- 오른쪽 그리드 뷰
+    for row, colorInfo in ipairs(CharsList) do
+        local y = gy + (row - 1) * (cellH + gapY)
+        
+        -- 오른쪽 그리드 행 배경
+        love.graphics.setColor(P.bg[1], P.bg[2], P.bg[3], 0.3)
+        love.graphics.rectangle("fill", gx - 75, y - 2, 805, 52, 6, 6)
+        
+        love.graphics.setColor(colorInfo.color)
+        love.graphics.circle("fill", gx - 60, y + cellH/2, 6)
+        Button.txt(HUD.getColorKoreanName(colorInfo.name), gx - 44, y + cellH/2 - 8, P.text, HUD.fM)
+        
+        local renderList = {}
+        
+        for _, c in ipairs(G.hand) do 
+            if c.name == colorInfo.name then 
+                if c.sel then
+                    table.insert(renderList, {state="picked", edition=c.edition or "normal"})
+                else
+                    table.insert(renderList, {state="hand", edition=c.edition or "normal"})
+                end
+            end 
+        end
+        for _, c in ipairs(G.deck) do 
+            if c.name == colorInfo.name then 
+                table.insert(renderList, {state="left", edition=c.edition or "normal"})
+            end 
+        end
+        
+        local tempFound = {}
+        for _, item in ipairs(renderList) do table.insert(tempFound, item.edition) end
+        
+        for _, c in ipairs(G.deckConfig) do
+            if c.name == colorInfo.name then
+                local ed = c.edition or "normal"
+                local foundIdx = nil
+                for i, v in ipairs(tempFound) do
+                    if v == ed then foundIdx = i; break end
+                end
+                if foundIdx then
+                    table.remove(tempFound, foundIdx)
+                else
+                    table.insert(renderList, {state="gone", edition=ed})
+                end
             end
+        end
+        
+        local stateOrder = {picked=1, hand=2, left=3, gone=4}
+        table.sort(renderList, function(a, b)
+            if stateOrder[a.state] ~= stateOrder[b.state] then
+                return stateOrder[a.state] < stateOrder[b.state]
+            end
+            return a.edition < b.edition
+        end)
+        
+        for i, item in ipairs(renderList) do
             local x = gx + ((i - 1) % perRow) * (cellW + gapX)
             local yy = y + math.floor((i - 1) / perRow) * (cellH + 4)
-            drawBagPiece(x, yy, cellW, cellH, colorInfo, state)
+            drawBagPiece(x, yy, cellW, cellH, colorInfo, item.state, item.edition)
         end
     end
 
-    local backX, backY, backW, backH = C.HCX - 540, 604, 1080, 42
+    local backX, backY, backW, backH = px + 28, py + ph - 28 - 42, pw - 56, 42
     local hovBack = mx >= backX and mx <= backX + backW and my >= backY and my <= backY + backH
     Button.draw(backX, backY, backW, backH, "뒤로", true, hovBack, HUD.fL)
-    Button.txtC("[B] 주머니 보기 / 닫기", C.HCX, backY - 28, {0.85, 0.96, 0.92, 0.72}, HUD.fS)
+    Button.txtC("[B] 주머니 보기 / 닫기", C.HCX, backY - 28, P.dim, HUD.fS)
 end
 
 return HUD
+

@@ -22,6 +22,13 @@ function Joker.drawIcon(item, cx, cy, accent)
     rr("line", cx - 40, cy - 38, 78, 74, 12)
 
     if item.type == "joker" then
+        -- Background Halo Ring
+        love.graphics.setColor(accent[1], accent[2], accent[3], 0.15)
+        love.graphics.circle("fill", cx, cy, 32)
+        love.graphics.setColor(accent[1], accent[2], accent[3], 0.35)
+        love.graphics.setLineWidth(1.2)
+        love.graphics.circle("line", cx, cy, 32)
+
         love.graphics.setColor(accent[1] * 0.75, accent[2] * 0.75, accent[3] * 0.75, 0.95)
         love.graphics.polygon("fill", cx - 24, cy - 8, cx - 34, cy - 28, cx - 15, cy - 20)
         love.graphics.polygon("fill", cx + 24, cy - 8, cx + 34, cy - 28, cx + 15, cy - 20)

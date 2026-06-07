@@ -44,7 +44,7 @@ Game.ante        = 1
 Game.stage       = 1
 Game.bossGimmick = "none"   -- none | no_red | no_black | no_discard | high_target
 Game.gold        = 4
-Game.jokers      = {}       -- 보유 조커(도우미) 목록
+Game.jokers      = {}       -- 보유 조커(증강체) 목록
 Game.shopItems   = {}       -- 상점 판매 아이템 목록
 Game.deckConfig  = {}       -- 영구 덱 구성
 
@@ -115,8 +115,8 @@ function Game.buyItem(idx)
     if item.type == "joker" then
         local JokerSystem = require("systems.joker_system")
         if not JokerSystem.canAddJoker(Game.jokers) then
-            Game.notice("도우미 자리가 가득 찼어요", "warn")
-            return false, "도우미 자리가 가득 찼습니다 (최대 3)"
+            Game.notice("증강체 자리가 가득 찼어요", "warn")
+            return false, "증강체 자리가 가득 찼습니다 (최대 3)"
         end
         table.insert(Game.jokers, {id=item.id, name=item.name, desc=item.desc})
     elseif item.type == "upgrade" then
@@ -155,6 +155,11 @@ function Game.reset()
     Game.stage = 1
     Game.gold = 4
     Game.jokers = {}
+    
+    -- 득점 스케일 및 활성화 표정 초기화
+    Game.executingCardIdx = -1
+    Game.chipScale = 1.0
+    Game.multScale = 1.0
     
     -- 보스 기믹 셔플 결정
     local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
@@ -202,12 +207,47 @@ function Game.update(dt)
         end
     end
     
+    -- 2.5 칩 및 배수 득점판 UI 스케일 바운스 수렴
+    Game.chipScale = Tween.smoothTo(Game.chipScale or 1.0, 1.0, 10, dt)
+    Game.multScale = Tween.smoothTo(Game.multScale or 1.0, 1.0, 10, dt)
+    
     -- 3. 파티클 수명 업데이트
     Effect.update(dt)
     
     -- 4. 토스트 알림 연출 타이머 갱신
     if Game.noticeTimer > 0 then
         Game.noticeTimer = math.max(0, Game.noticeTimer - dt)
+    end
+
+    -- 4.5 실시간 시간 증강체 타이머 업데이트
+    if Game.phase == "play" then
+        local hasTimeAugment = false
+        local hasTimeFever = false
+        for _, j in ipairs(Game.jokers or {}) do
+            if j.id == "time_accelerator" then
+                hasTimeAugment = true
+            elseif j.id == "time_fever" then
+                hasTimeFever = true
+            end
+        end
+        
+        if hasTimeAugment then
+            Game.timeScoreTimer = (Game.timeScoreTimer or 0) + dt
+        else
+            Game.timeScoreTimer = 0
+        end
+        
+        if hasTimeFever then
+            Game.timeFeverTimer = (Game.timeFeverTimer or 0) + dt
+            if Game.timeFeverTimer >= 6.0 then
+                Game.timeFeverTimer = Game.timeFeverTimer - 6.0
+                Game.gold = Game.gold + 1
+                Game.notice("시간 피버! 코인 +$1", "ok")
+                Audio.play("reveal")
+            end
+        else
+            Game.timeFeverTimer = 0
+        end
     end
 
     -- 5. 부드러운 점수 보간 수렴 계산 (utils/tween 적용)
@@ -227,9 +267,9 @@ function Game.update(dt)
         Audio.play("clear")
         Game.shake = Game.shake + 12
         
-        -- 현재 점수 판넬 위치(x+126, y+84 where x=30, y=30) 부근에서 금빛 파티클
-        local sx = 30 + 126 + 50
-        local sy = 30 + 84 + 30
+        -- 리뉴얼된 좌측 정보 패널 점수 위치 부근에서 금빛 파티클 튀기기
+        local sx = C.LX + 100
+        local sy = 214
         Effect.spawnParticles(sx, sy, {0.98, 0.85, 0.20}, 30)
         Game.notice("관문 통과!", "ok")
     end

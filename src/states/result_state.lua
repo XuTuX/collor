@@ -18,7 +18,7 @@ local ScoreSys = require("systems.score_system")
 local Tile = require("gameplay.tile")
 local TurnManager = require("gameplay.turn_manager")
 local MathUtils = require("utils.math")
-
+local PatternsData = require("data.patterns")
 local G = nil
 
 function ResultState.enter(gameInstance)
@@ -57,8 +57,8 @@ function ResultState.draw()
     end
 
     HUD.drawTopUI(G)
-    CardSlot.drawBoard(G.board, G.slotAnim, ScoreSys.getState())
-    HUD.drawCheatSheet()
+    CardSlot.drawBoard(G, G.board, G.slotAnim, ScoreSys.getState())
+    HUD.drawCheatSheet(G)
     Effect.draw()
     
     love.graphics.pop()
@@ -112,7 +112,7 @@ function ResultState.drawScoring()
         love.graphics.rectangle("fill", 0, 0, 3, lh, 2, 2)
         love.graphics.setFont(HUD.fS)
         love.graphics.setColor(cc[1], cc[2], cc[3], age * 0.6)
-        local cName = h.cat == "MONO" and "같은색" or h.cat == "MIRROR" and "거울" or "계단"
+        local cName = PatternsData.CAT_NAMES[h.cat] or h.cat
         love.graphics.print(cName, 10, 3)
         
         love.graphics.setFont(HUD.fM)
@@ -205,7 +205,7 @@ function ResultState.drawResult()
             love.graphics.circle("fill", px + 20, y + 7, 3)
             love.graphics.setFont(HUD.fS)
             love.graphics.setColor(cc[1], cc[2], cc[3], 0.55)
-            local cName = h.cat == "MONO" and "같은색" or h.cat == "MIRROR" and "거울" or "계단"
+            local cName = PatternsData.CAT_NAMES[h.cat] or h.cat
             love.graphics.print(cName, px + 30, y)
             
             love.graphics.setFont(HUD.fM)
@@ -265,7 +265,7 @@ function ResultState.drawResult()
     love.graphics.setColor(P.dim)
     love.graphics.print("코인 받기:", gx + 10, gy + 8)
     
-    local gtxt = string.format("기본 +$3  바꾸기 +$%d  저금 +$%d  도우미 +$%d", discGold, interestGold, jokerGold)
+    local gtxt = string.format("기본 +$3  바꾸기 +$%d  저금 +$%d  증강체 +$%d", discGold, interestGold, jokerGold)
     love.graphics.setColor(P.text)
     love.graphics.print(gtxt, gx + 10, gy + 26)
     

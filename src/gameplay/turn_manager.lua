@@ -39,24 +39,74 @@ function TurnManager.discard(G)
     G.discLeft = G.discLeft - 1
     Audio.play("discard")
     G.notice(toDiscard .. "명을 바꿨어요", "ok")
+
+    -- [무작위 발동 증강체] 재굴림 스파크: 바꾸기 시 35% 확률로 패의 무작위 카드 1장 강화
+    local hasRerollSpark = false
+    for _, j in ipairs(G.jokers or {}) do
+        if j.id == "reroll_spark" then
+            hasRerollSpark = true
+            break
+        end
+    end
+    
+    if hasRerollSpark and love.math.random() < 0.35 and #G.hand > 0 then
+        local idx = love.math.random(1, #G.hand)
+        local eds = {"foil", "holo", "gold"}
+        local newEd = eds[love.math.random(1, #eds)]
+        G.hand[idx].edition = newEd
+        local HUD = require("ui.hud")
+        G.notice("스파크 발동! " .. HUD.getColorKoreanName(G.hand[idx].name) .. " 친구 강화!", "ok")
+        Audio.play("reveal")
+    end
+
+    -- [무작위 발동 증강체] 재굴림 증폭기: 바꾸기 시 40% 확률로 이번 라운드 배수 +3 추가
+    local hasRerollBoost = false
+    for _, j in ipairs(G.jokers or {}) do
+        if j.id == "reroll_boost" then
+            hasRerollBoost = true
+            break
+        end
+    end
+    
+    if hasRerollBoost and love.math.random() < 0.40 then
+        G.discardMultBonus = (G.discardMultBonus or 0) + 3
+        G.notice("증폭 성공! 이번 라운드 배수 +3!", "ok")
+        Audio.play("reveal")
+    end
+    
     return true
 end
 
 -- 실행(무대로 카드 보내기) 액션 실행
 function TurnManager.executeHand(G)
-    local count = math.min(C.BN, #G.hand)
-    if count == 0 then return false end
+    local selectedIndices = Tile.getSelectedIndices(G.hand)
+    local playCards = {}
+    
+    if #selectedIndices > 0 then
+        -- 선택된 카드만 출전
+        table.sort(selectedIndices, function(a, b) return a > b end)
+        for _, idx in ipairs(selectedIndices) do
+            local card = table.remove(G.hand, idx)
+            card.sel = false
+            table.insert(playCards, 1, card)
+        end
+    else
+        -- 선택된 카드가 없으면 패의 모든 카드 (최대 7장) 자동 출전 (기존 기능 보존)
+        local count = math.min(C.BN, #G.hand)
+        if count == 0 then return false end
+        for i = 1, count do
+            local card = table.remove(G.hand, 1)
+            card.sel = false
+            table.insert(playCards, card)
+        end
+    end
     
     G.execLeft = G.execLeft - 1
     G.phase = "executing"
     
-    -- 카드 순차 비행 애니메이션 실행 목록 수집
-    local flyingCards = {}
-    for i = 1, count do
-        local card = table.remove(G.hand, 1)
-        card.sel = false
-        table.insert(flyingCards, card)
-    end
+    -- 실시간 시간 증강체 타이머 리셋
+    G.timeScoreSnapshot = G.timeScoreTimer or 0
+    G.timeScoreTimer = 0
     
     -- 남아있는 패 카드들의 선택 상태 초기화
     for _, c in ipairs(G.hand) do
@@ -69,7 +119,7 @@ function TurnManager.executeHand(G)
         G.board[i] = nil
     end
     
-    Anim.startExecAnim(flyingCards)
+    Anim.startExecAnim(playCards)
     Audio.play("select")
     return true
 end
@@ -79,6 +129,7 @@ function TurnManager.newRound(G)
     G.score = 0
     G.dScore = 0
     G.execLeft = 4
+    G.discardMultBonus = 0
     
     -- 보드판 초기화
     G.board = {}

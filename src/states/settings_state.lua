@@ -19,6 +19,43 @@ local TurnManager = require("gameplay.turn_manager")
 
 local G = nil
 
+local function drawJokerWatermark(jx, jy, jw, jh, accentColor)
+    local cx, cy = jx + jw/2, jy + jh/2
+    local rad = 22
+    
+    -- Ears/Horns
+    love.graphics.setColor(accentColor[1]*0.6, accentColor[2]*0.6, accentColor[3]*0.6, 0.12)
+    love.graphics.polygon("fill", cx - 20, cy - 8, cx - 28, cy - 24, cx - 12, cy - 18)
+    love.graphics.polygon("fill", cx + 20, cy - 8, cx + 28, cy - 24, cx + 12, cy - 18)
+    
+    -- Body
+    love.graphics.setColor(accentColor[1], accentColor[2], accentColor[3], 0.10)
+    love.graphics.circle("fill", cx, cy, rad)
+    love.graphics.setColor(accentColor[1], accentColor[2], accentColor[3], 0.15)
+    love.graphics.setLineWidth(1)
+    love.graphics.circle("line", cx, cy, rad)
+    
+    -- Eyes
+    love.graphics.setColor(1, 1, 1, 0.2)
+    love.graphics.ellipse("fill", cx - 7, cy - 3, 3, 5)
+    love.graphics.ellipse("fill", cx + 7, cy - 3, 3, 5)
+end
+
+local function drawBagWatermark(dx, dy, dw, dh)
+    local cx, cy = dx + dw/2, dy + dh/2
+    local w, h = 32, 42
+    
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.08)
+    -- Back card
+    love.graphics.rectangle("fill", cx - w/2 + 4, cy - h/2 - 4, w, h, 4, 4)
+    -- Front card
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.10)
+    love.graphics.rectangle("fill", cx - w/2, cy - h/2, w, h, 4, 4)
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.15)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", cx - w/2, cy - h/2, w, h, 4, 4)
+end
+
 function SettingsState.enter(gameInstance)
     G = gameInstance
 end
@@ -158,6 +195,15 @@ function SettingsState.draw()
                 bc = P.cStep
             end
 
+            -- 1. Neon Aura Glow for Shop Cards (Behind)
+            if not item.sold then
+                for g = 1, 3 do
+                    love.graphics.setColor(bc[1], bc[2], bc[3], 0.15 / g)
+                    love.graphics.setLineWidth(1.5 + g * 1.5)
+                    love.graphics.rectangle("line", ix - g, iy - g, itemW + g*2, itemH + g*2, 8, 8)
+                end
+            end
+
             love.graphics.setColor(0.25, 0.32, 0.44, 0.10)
             love.graphics.rectangle("fill", ix + 2, iy + 4, itemW, itemH, 8, 8)
             love.graphics.setColor(item.sold and {0.94,0.94,0.95} or P.panel)
@@ -180,7 +226,7 @@ function SettingsState.draw()
                 love.graphics.setFont(HUD.fS)
                 local typeTxt = "기타"
                 if item.type == "deck_add" or item.type == "deck_remove" then typeTxt = "주머니"
-                elseif item.type == "joker" then typeTxt = "도우미"
+                elseif item.type == "joker" then typeTxt = "증강체"
                 elseif item.type == "upgrade" then typeTxt = "반짝임" end
                 
                 Button.pill(ix + 16, iy + 34, 100, 20, typeTxt, bc, HUD.fS)
@@ -222,54 +268,78 @@ function SettingsState.draw()
     love.graphics.setColor(P.text)
     love.graphics.print("보유 도우미 (" .. #G.jokers .. "/3)", sx + 15, sy + 12)
     
-    local jw = 125
-    local jh = 85
+    local jw = 110
+    local jh = 84
+    local jy = sy + 36
+    
     for i = 1, 3 do
-        local jx = sx + 15 + (i - 1) * (jw + 10)
-        local jy = sy + 35
-        
-        love.graphics.setColor(0.04, 0.05, 0.08, 0.5)
-        love.graphics.rectangle("fill", jx, jy, jw, jh, 6, 6)
-        love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.3)
-        love.graphics.setLineWidth(1)
-        love.graphics.rectangle("line", jx, jy, jw, jh, 6, 6)
+        local jx = sx + 15 + (i - 1) * (jw + 12)
         
         local j = G.jokers[i]
         if j then
+            -- 워터마크 그리기
+            drawJokerWatermark(jx, jy, jw, jh, P.cMirr)
+            
+            love.graphics.setColor(P.cMirr[1], P.cMirr[2], P.cMirr[3], 0.06)
+            love.graphics.rectangle("fill", jx, jy, jw, jh, 6, 6)
+            love.graphics.setColor(P.cMirr[1], P.cMirr[2], P.cMirr[3], 0.4)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.rectangle("line", jx, jy, jw, jh, 6, 6)
+            
             love.graphics.setFont(HUD.fS)
-            Button.txtC(j.name, jx + jw/2, jy + 10, P.cMirr, HUD.fS)
+            Button.txtC(j.name, jx + jw/2, jy + 10, P.white, HUD.fS)
+            
+            local desc = j.desc
+            if j.id == "time_accelerator" then
+                local currentBonus = math.floor((G.timeScoreTimer or 0) / 4) * 2
+                desc = "4초 마다 배수 +2\n(현재 배수: +" .. currentBonus .. ")\n실행 시 리셋"
+            elseif j.id == "reroll_boost" then
+                desc = "바꾸기 시 40% 확률로\n이번 라운드 배수 +3 추가\n(현재 배수: +" .. (G.discardMultBonus or 0) .. ")"
+            elseif j.id == "time_fever" then
+                local currentProgress = math.floor(G.timeFeverTimer or 0)
+                desc = "6초 마다 보유 코인 +$1\n(현재 축적: " .. currentProgress .. "초/6초)"
+            end
             
             local lineY = jy + 30
-            for line in string.gmatch(j.desc, "[^\n]+") do
+            for line in string.gmatch(desc, "[^\n]+") do
                 Button.txtC(line, jx + jw/2, lineY, P.dim, HUD.fS)
                 lineY = lineY + 15
             end
         else
+            love.graphics.setColor(0.04, 0.05, 0.08, 0.5)
+            love.graphics.rectangle("fill", jx, jy, jw, jh, 6, 6)
+            love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.2)
+            love.graphics.setLineWidth(1)
+            love.graphics.rectangle("line", jx, jy, jw, jh, 6, 6)
+            
             love.graphics.setFont(HUD.fS)
             Button.txtC("비어 있음", jx + jw/2, jy + jh/2 - 7, {0.4, 0.4, 0.4, 0.5}, HUD.fS)
         end
     end
     
     -- 주머니 크기
-    local dx = sx + 400
-    local dy = sy + 12
-    local dw = sw - 415
-    local dh = sh - 24
+    local dx = sx + 395
+    local dy = jy
+    local dw = sw - 410
+    local dh = jh
     
-    love.graphics.setColor(0.04, 0.05, 0.08, 0.5)
+    -- 워터마크 그리기
+    drawBagWatermark(dx, dy, dw, dh)
+    
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.05)
     love.graphics.rectangle("fill", dx, dy, dw, dh, 6, 6)
-    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.3)
-    love.graphics.setLineWidth(1)
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.4)
+    love.graphics.setLineWidth(1.5)
     love.graphics.rectangle("line", dx, dy, dw, dh, 6, 6)
     
     love.graphics.setFont(HUD.fS)
-    Button.txtC("주머니", dx + dw/2, dy + 12, P.text, HUD.fS)
+    Button.txtC("주머니", dx + dw/2, dy + 10, P.text, HUD.fS)
     
     love.graphics.setFont(HUD.fX)
     local countStr = tostring(#G.deckConfig)
-    Button.txtC(countStr, dx + dw/2, dy + 34, P.gold, HUD.fX)
+    Button.txtC(countStr, dx + dw/2, dy + 26, P.gold, HUD.fX)
     
-    Button.txtC("개", dx + dw/2, dy + 66, P.dim, HUD.fS)
+    Button.txtC("개", dx + dw/2, dy + 58, P.dim, HUD.fS)
 end
 
 -- 상점 아이템 랜덤 구성 생성 (G.enterShop 이식)
@@ -283,8 +353,12 @@ function SettingsState.enterShop(gameInstance)
         {type="upgrade", hand="Grand Mirror", name="큰 거울 반짝임", desc="큰 거울 규칙 +1\n(+100 별, +10 콤보)", price=3},
         {type="upgrade", hand="Half Step", name="작은 계단 반짝임", desc="작은 계단 규칙 +1\n(+45 별, +4 콤보)", price=3},
         {type="upgrade", hand="Perfect Ladder", name="무지개 계단 반짝임", desc="무지개 계단 규칙 +1\n(+80 별, +6 콤보)", price=3},
+        {type="upgrade", hand="Double Twins", name="쌍둥이 반짝임", desc="쌍둥이 규칙 +1\n(+20 별, +2 콤보)", price=3},
+        {type="upgrade", hand="Triple Twins", name="세 쌍둥이 반짝임", desc="세 쌍둥이 규칙 +1\n(+40 별, +3.5 콤보)", price=3},
+        {type="upgrade", hand="Mini Zigzag", name="작은 지그재그 반짝임", desc="작은 지그재그 규칙 +1\n(+30 별, +2.5 콤보)", price=3},
+        {type="upgrade", hand="Grand Zigzag", name="큰 지그재그 반짝임", desc="큰 지그재그 규칙 +1\n(+60 별, +5 콤보)", price=3},
 
-        -- 도우미 조커
+        -- 증강체
         {type="joker", id="shiny_eye", name="반짝이는 눈", desc="위에 하양이 있으면\n+50 별", price=6},
         {type="joker", id="dark_side", name="밤빛 친구", desc="위에 검정이 있으면\n+5 콤보", price=6},
         {type="joker", id="mirror_shield", name="거울 방패", desc="거울 규칙이 나오면\nx1.8 콤보", price=6},
@@ -296,6 +370,14 @@ function SettingsState.enterShop(gameInstance)
         {type="joker", id="mono_pride", name="일편단심", desc="보드판 전체가 단 1가지\n색이면 x2.5 콤보", price=8},
         {type="joker", id="burning", name="불타는 열정", desc="보드판 위의 빨강\n카드 1개당 +3 콤보", price=5},
         {type="joker", id="lemonade", name="레몬에이드", desc="보드판 위의 노랑\n카드 1개당 +25 별", price=5},
+        {type="joker", id="overload", name="증강 가속기", desc="다른 활성화 증강체\n1개당 +4 콤보 추가", price=7},
+        {type="joker", id="eclipse", name="일식 (화이트&블랙)", desc="하양과 검정 증강체\n동시 발동 시 x1.8 배수", price=8},
+        {type="joker", id="alchemy", name="금단 연금술", desc="보드판의 빨강 & 노랑\n각 2장 이상 시 별 +80, +$2", price=6},
+        {type="joker", id="resonance", name="공명 주파수", desc="거울과 계단 규칙\n동시 발동 시 x2.0 배수", price=7},
+        {type="joker", id="time_accelerator", name="시간 가속기", desc="4초 마다 배수 +2\n(현재 배수: +0)\n실행 시 리셋", price=6},
+        {type="joker", id="reroll_spark", name="재굴림 스파크", desc="바꾸기 시 35% 확률로\n패의 무작위 카드 1장\n특수 에디션으로 강화", price=6},
+        {type="joker", id="reroll_boost", name="재굴림 증폭기", desc="바꾸기 시 40% 확률로\n이번 라운드 배수 +3 추가\n(현재 배수: +0)", price=6},
+        {type="joker", id="time_fever", name="시간 피버", desc="6초 마다 보유 코인 +$1\n(현재 축적: 0초/6초)", price=7},
 
         -- 색친구 주머니 추가 및 삭제
         {type="deck_add", colorName="Red", colorVal={0.92,0.22,0.25}, name="빨강 추가", desc="빨강 색친구 1개를\n주머니에 계속 추가", price=2},
