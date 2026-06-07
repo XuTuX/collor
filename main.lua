@@ -56,8 +56,17 @@ function love.mousepressed(x, y, btn)
     if btn ~= 1 then return end
 
     if G.phase == "title" then
-        G.phase = "play"
-        require("sound").play("discard")
+        local cx = 640
+        local py = 130
+        local ph = 420
+        local btnW, btnH = 200, 48
+        local btnX = cx - btnW / 2
+        local btnY = py + ph - 85
+        
+        if x >= btnX and x <= btnX + btnW and y >= btnY and y <= btnY + btnH then
+            G.phase = "play"
+            require("sound").play("discard")
+        end
         return
     end
 
@@ -73,7 +82,7 @@ function love.mousepressed(x, y, btn)
     end
 
     -- 공통: 리셋 버튼 클릭 감지
-    local resetX, resetY, resetW, resetH = C.LX + 134, C.LY + 164, 84, 34
+    local resetX, resetY, resetW, resetH = C.LX + C.LW - 74, C.LY + 14, 56, 24
     if x >= resetX and x <= resetX+resetW and y >= resetY and y <= resetY+resetH then
         G.reset()
         require("sound").play("discard")
@@ -82,16 +91,17 @@ function love.mousepressed(x, y, btn)
 
     -- 상점 상태 감지 및 입력 처리
     if G.phase == "shop" then
-        local px, py = C.HCX - 300, 80
-        local startX = px + 30
+        -- 1. 아이템 구매 버튼 클릭 체크
+        local rx = 620
+        local ry = 80
+        local startX = rx + 30
         local itemW = 160
         local itemH = 260
-        local gap = 30
+        local gap = 20
         
-        -- 아이템 구매 버튼 클릭 체크
         for i = 1, 3 do
             local ix = startX + (i-1) * (itemW + gap)
-            local iy = py + 110
+            local iy = ry + 110
             local bx = ix + 15
             local by = iy + itemH - 50
             local bw = itemW - 30
@@ -103,11 +113,16 @@ function love.mousepressed(x, y, btn)
             end
         end
         
-        -- NEXT ROUND 버튼 클릭 체크
-        local nW, nH = 180, 44
-        local nX = px + (600 - nW)/2
-        local nY = py + 520 - 80
-        if x >= nX and x <= nX+nW and y >= nY and y <= nY+nH then
+        -- 2. 관문 시작 버튼 클릭 체크
+        local lx = 80
+        local ly = 80
+        local lw = 500
+        local lh = 560
+        local btnW = lw - 60
+        local btnH = 50
+        local btnX = lx + 30
+        local btnY = ly + lh - 80
+        if x >= btnX and x <= btnX+btnW and y >= btnY and y <= btnY+btnH then
             G.exitShop()
             return
         end
@@ -131,36 +146,37 @@ function love.mousepressed(x, y, btn)
     -- 스코어링 중 → 스킵
     if G.phase == "scoring" then
         local s = G.sc
+        local proceed = false
         if s.phase == "total" and s.timer > 1.2 then
-            s.active = false
-            G.score = G.score + G.rndScore
-            G.phase = "result"
-            if G.score >= G.targetScore then
-                require("sound").play("clear")
-            end
+            proceed = true
         elseif s.phase == "nohand" and s.timer > 0.8 then
+            proceed = true
+        end
+        
+        if proceed then
             s.active = false
             G.score = G.score + G.rndScore
-            G.phase = "result"
-            if G.score >= G.targetScore then
-                require("sound").play("clear")
-            end
-        end
-        return
-    end
-
-    -- 결과 → 상점으로 진입 또는 게임 오버로 전환
-    if G.phase == "result" then
-        if G.score >= G.targetScore then
-            -- 상점 진입 전 코인 보상 더하기
-            local totalGold = G.calcGoldReward()
-            G.gold = G.gold + totalGold
+            G.totalScore = G.totalScore + G.rndScore
             
-            G.enterShop()
-            require("sound").play("discard")
-        else
-            G.phase = "gameover"
-            require("sound").play("gameover")
+            if G.score >= G.targetScore then
+                local totalGold = G.calcGoldReward()
+                G.gold = G.gold + totalGold
+                G.enterShop()
+                require("sound").play("clear")
+                G.notice("+$" .. totalGold .. " 획득 (기본+바꾸기+저금)", "ok")
+            elseif G.execLeft > 0 then
+                G.phase = "play"
+                local need = C.HN - #G.hand
+                local drawn = G.drawCards(need)
+                for _, c in ipairs(drawn) do
+                    table.insert(G.hand, c)
+                end
+                G.board = {}
+                for i = 1, C.BN do G.board[i] = nil end
+            else
+                G.phase = "gameover"
+                require("sound").play("gameover")
+            end
         end
         return
     end
@@ -258,26 +274,37 @@ function love.keypressed(key)
 
     if G.phase == "scoring" and (key == "return" or key == "space") then
         local s = G.sc
-        if (s.phase == "total" and s.timer > 1.2) or (s.phase == "nohand" and s.timer > 0.8) then
+        local proceed = false
+        if s.phase == "total" and s.timer > 1.2 then
+            proceed = true
+        elseif s.phase == "nohand" and s.timer > 0.8 then
+            proceed = true
+        end
+        
+        if proceed then
             s.active = false
             G.score = G.score + G.rndScore
-            G.phase = "result"
+            G.totalScore = G.totalScore + G.rndScore
+            
             if G.score >= G.targetScore then
+                local totalGold = G.calcGoldReward()
+                G.gold = G.gold + totalGold
+                G.enterShop()
                 require("sound").play("clear")
+                G.notice("+$" .. totalGold .. " 획득 (기본+바꾸기+저금)", "ok")
+            elseif G.execLeft > 0 then
+                G.phase = "play"
+                local need = C.HN - #G.hand
+                local drawn = G.drawCards(need)
+                for _, c in ipairs(drawn) do
+                    table.insert(G.hand, c)
+                end
+                G.board = {}
+                for i = 1, C.BN do G.board[i] = nil end
+            else
+                G.phase = "gameover"
+                require("sound").play("gameover")
             end
-        end
-        return
-    end
-
-    if G.phase == "result" and (key == "return" or key == "space") then
-        if G.score >= G.targetScore then
-            local totalGold = G.calcGoldReward()
-            G.gold = G.gold + totalGold
-            G.enterShop()
-            require("sound").play("discard")
-        else
-            G.phase = "gameover"
-            require("sound").play("gameover")
         end
         return
     end

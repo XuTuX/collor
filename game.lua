@@ -3,6 +3,7 @@
 ------------------------------------------------------------
 local C = require("config")
 local D = require("detect")
+local P = C.P
 local G = {}
 
 -- ── 상태 ──
@@ -10,6 +11,8 @@ G.board      = {}
 G.hand       = {}
 G.deck       = {}
 G.score      = 0
+G.totalScore = 0
+G.execLeft   = 4
 G.dScore     = 0       -- 부드러운 표시용
 G.round      = 1
 G.rndScore   = 0
@@ -179,6 +182,7 @@ function G.executeHand()
     local count = math.min(C.BN, #G.hand)
     if count == 0 then return false end
     
+    G.execLeft = G.execLeft - 1
     G.phase = "executing"
     G.execAnim.active = true
     G.execAnim.cards = {}
@@ -204,6 +208,9 @@ end
 
 -- ── 관문 시작 ──
 function G.newRound()
+    G.score = 0
+    G.dScore = 0
+    G.execLeft = 4
     G.board = {}
     for i = 1, C.BN do G.board[i] = nil end
     G.slotAnim = {}
@@ -259,13 +266,15 @@ end
 
 function G.reset()
     G.score = 0
+    G.totalScore = 0
     G.dScore = 0
     G.round = 1
     G.ante = 1
     G.stage = 1
     G.gold = 4
     G.jokers = {}
-    G.bossGimmick = "none"
+    local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
+    G.bossGimmick = gimmicks[love.math.random(1, #gimmicks)]
     G.roundCleared = false
     
     -- 색 규칙 레벨 초기화
@@ -276,9 +285,8 @@ function G.reset()
     end
     
     G.deckConfig = {}
-    local perColor = C.DECK / #C.COLORS
     for _, c in ipairs(C.COLORS) do
-        for _ = 1, perColor do
+        for _ = 1, c.count do
             table.insert(G.deckConfig, {name=c.name, color={c.color[1],c.color[2],c.color[3]}})
         end
     end
@@ -356,8 +364,25 @@ function G.startScoring()
     s.events = {}
     s.hopIdx = {}  -- Cards currently hopping
 
-    -- 1. Card base scores
+    -- 1. Diversity Bonus (이제 점수 계산 시작 직전에 먼저 적용!)
     local uniqueColors = {}
+    for i = 1, C.BN do
+        local c = G.board[i]
+        if c then
+            uniqueColors[c.name] = true
+        end
+    end
+    local ucCount = 0
+    for _ in pairs(uniqueColors) do ucCount = ucCount + 1 end
+    if ucCount >= 3 then
+        local c, m = 0, 0
+        if ucCount == 3 then c=20; m=2
+        elseif ucCount == 4 then c=60; m=4
+        else c=120; m=8 end
+        table.insert(s.events, {type="diversity", count=ucCount, chips=c, mult=m})
+    end
+
+    -- 2. Card base scores
     for i = 1, C.BN do
         local c = G.board[i]
         if c then
@@ -366,19 +391,7 @@ function G.startScoring()
                 if info.name == c.name then base = info.base or 10; break end
             end
             table.insert(s.events, {type="card", idx=i, chips=base, name=c.name})
-            uniqueColors[c.name] = true
         end
-    end
-
-    -- 2. Diversity Bonus
-    local ucCount = 0
-    for _ in pairs(uniqueColors) do ucCount = ucCount + 1 end
-    if ucCount >= 3 then
-        local c, m = 0, 0
-        if ucCount == 3 then c=10; m=1
-        elseif ucCount == 4 then c=30; m=2
-        else c=50; m=3 end
-        table.insert(s.events, {type="diversity", count=ucCount, chips=c, mult=m})
     end
 
     -- 3. Rules
@@ -444,13 +457,21 @@ function G.updateScoring(dt)
                     require("sound").play("tick")
                     G.shake = G.shake + 2
                     
+                    -- 캐릭터 머리 위에서 +점수 텍스트 떠오름
+                    local sx = C.BX + (e.idx-1)*(C.BSW+C.BGAP) + C.BSW/2
+                    local sy = C.BY - 10
+                    G.spawnTextParticle(sx, sy, "+" .. e.chips, P.chip)
+                    
                 elseif e.type == "diversity" then
                     s.tChips = s.tChips + e.chips
                     s.tMult = s.tMult + e.mult
-                    G.notice(e.count.."색 보너스!", "ok")
+                    G.notice(e.count.."색 보너스! (+"..e.chips..", x"..e.mult..")", "ok")
                     require("sound").play("reveal")
                     G.shake = G.shake + 5
                     for i=1, C.BN do if G.board[i] then s.hopIdx[i] = true end end
+                    
+                    -- 보드판 중앙 위쪽으로 다채로움 보너스 텍스트 떠오름
+                    G.spawnTextParticle(C.HCX, C.BY - 40, "+" .. e.chips .. "  x" .. e.mult, P.gold)
                     
                 elseif e.type == "rule" then
                     s.tChips = s.tChips + e.rule.chips
@@ -460,6 +481,9 @@ function G.updateScoring(dt)
                     G.shake = G.shake + 8
                     for _, hi in ipairs(e.rule.idx or {}) do s.hopIdx[hi] = true end
                     
+                    -- 보드판 중앙 위쪽으로 규칙 매칭 점수 텍스트 떠오름
+                    G.spawnTextParticle(C.HCX, C.BY - 50, "+" .. e.rule.chips .. "  x" .. e.rule.mult, P.mult)
+                    
                 elseif e.type == "joker" then
                     s.tChips = s.tChips + e.chips
                     s.tMult = s.tMult + e.mult
@@ -467,6 +491,12 @@ function G.updateScoring(dt)
                     G.notice(e.name.." 발동!", "ok")
                     require("sound").play("reveal")
                     G.shake = G.shake + 5
+                    
+                    local msg = ""
+                    if e.chips > 0 then msg = msg .. "+" .. e.chips .. " " end
+                    if e.mult > 0 then msg = msg .. "x" .. e.mult .. " " end
+                    if e.xmult > 1 then msg = msg .. "x" .. e.xmult end
+                    G.spawnTextParticle(C.HCX, C.BY - 60, msg, P.gold)
                     
                 elseif e.type == "total" then
                     G.rndScore = math.floor(s.tChips * s.tMult)
@@ -510,6 +540,19 @@ function G.spawnParticles(x, y, color, count)
             maxAge = love.math.random(0.3, 0.6)
         })
     end
+end
+
+function G.spawnTextParticle(x, y, text, color)
+    table.insert(G.particles, {
+        type = "text",
+        x = x,
+        y = y,
+        text = text,
+        color = {color[1], color[2], color[3]},
+        dy = -40,
+        age = 0,
+        maxAge = 0.8
+    })
 end
 
 -- 코인 획득 계산
@@ -639,12 +682,10 @@ function G.exitShop()
         G.ante = G.ante + 1
     end
     
-    -- 특별 관문 규칙 랜덤 결정
-    if G.stage == 3 then
+    -- 특별 관문 규칙 랜덤 결정 (stage 1 진입 시 미리 결정하여 모험판에서 볼 수 있도록 함)
+    if G.stage == 1 then
         local gimmicks = {"no_red", "no_black", "no_discard", "high_target"}
         G.bossGimmick = gimmicks[love.math.random(1, #gimmicks)]
-    else
-        G.bossGimmick = "none"
     end
     
     G.newRound()
@@ -679,9 +720,14 @@ function G.update(dt)
         if p.age >= p.maxAge then
             table.remove(G.particles, i)
         else
-            p.x = p.x + p.dx * dt
-            p.y = p.y + p.dy * dt
-            p.dy = p.dy + 350 * dt -- 중력 적용
+            if p.type == "text" then
+                p.y = p.y + p.dy * dt
+                p.dy = p.dy * 0.94 -- 서서히 감속하며 승천
+            else
+                p.x = p.x + p.dx * dt
+                p.y = p.y + p.dy * dt
+                p.dy = p.dy + 350 * dt -- 중력 적용
+            end
         end
     end
     

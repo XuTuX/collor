@@ -271,14 +271,26 @@ end
 -- 파티클
 ------------------------------------------------------------
 function R.particles()
-    love.graphics.setLineWidth(1)
     for _, p in ipairs(G.particles) do
         local alpha = 1 - p.age / p.maxAge
-        love.graphics.setColor(p.color[1], p.color[2], p.color[3], alpha * 0.8)
-        love.graphics.circle("fill", p.x, p.y, p.rad)
-        
-        love.graphics.setColor(p.color[1]*1.2, p.color[2]*1.2, p.color[3]*1.2, alpha * 0.3)
-        love.graphics.circle("line", p.x, p.y, p.rad + 1.2)
+        if p.type == "text" then
+            love.graphics.setFont(UI.fL)
+            
+            -- 그림자 효과
+            love.graphics.setColor(0, 0, 0, alpha * 0.7)
+            love.graphics.print(p.text, p.x - UI.fL:getWidth(p.text)/2 + 1, p.y - UI.fL:getHeight()/2 + 1)
+            
+            -- 메인 텍스트
+            love.graphics.setColor(p.color[1], p.color[2], p.color[3], alpha)
+            love.graphics.print(p.text, p.x - UI.fL:getWidth(p.text)/2, p.y - UI.fL:getHeight()/2)
+        else
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(p.color[1], p.color[2], p.color[3], alpha * 0.8)
+            love.graphics.circle("fill", p.x, p.y, p.rad)
+            
+            love.graphics.setColor(p.color[1]*1.2, p.color[2]*1.2, p.color[3]*1.2, alpha * 0.3)
+            love.graphics.circle("line", p.x, p.y, p.rad + 1.2)
+        end
     end
 end
 

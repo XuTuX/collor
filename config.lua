@@ -7,11 +7,11 @@ C.SW, C.SH = 1280, 720
 
 -- 블록 색상 (기본 점수 추가)
 C.COLORS = {
-    {name="Red",    short="R", color={0.92,0.22,0.25}, dark={0.65,0.10,0.12}, base=10},
-    {name="Orange", short="O", color={0.95,0.55,0.15}, dark={0.68,0.35,0.06}, base=20},
-    {name="Yellow", short="Y", color={0.95,0.85,0.15}, dark={0.68,0.60,0.06}, base=30},
-    {name="White",  short="W", color={0.94,0.94,0.96}, dark={0.70,0.70,0.72}, base=40},
-    {name="Black",  short="K", color={0.12,0.12,0.16}, dark={0.05,0.05,0.07}, base=50},
+    {name="Red",    short="R", color={0.92,0.22,0.25}, dark={0.65,0.10,0.12}, base=10, count=16},
+    {name="Orange", short="O", color={0.95,0.55,0.15}, dark={0.68,0.35,0.06}, base=20, count=12},
+    {name="Yellow", short="Y", color={0.95,0.85,0.15}, dark={0.68,0.60,0.06}, base=35, count=10},
+    {name="White",  short="W", color={0.94,0.94,0.96}, dark={0.70,0.70,0.72}, base=55, count=8},
+    {name="Black",  short="K", color={0.12,0.12,0.16}, dark={0.05,0.05,0.07}, base=80, count=4},
 }
 
 -- 실행 줄
