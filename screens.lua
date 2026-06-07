@@ -64,13 +64,17 @@ function S.title()
 
     local time = love.timer.getTime()
 
+    -- 방사형 후광 효과 (단순화된 원)
+    love.graphics.setColor(P.cMirr[1], P.cMirr[2], P.cMirr[3], 0.15)
+    love.graphics.circle("fill", C.SW/2, C.SH/2, 400 + math.sin(time)*20)
+    
     for y = 0, C.SH, 24 do
         local t = y / C.SH
         love.graphics.setColor(
             P.felt[1] * (1 - t) + P.felt2[1] * t,
             P.felt[2] * (1 - t) + P.felt2[2] * t,
             P.felt[3] * (1 - t) + P.felt2[3] * t,
-            0.38
+            0.6
         )
         love.graphics.rectangle("fill", 0, y, C.SW, 24)
     end
@@ -141,61 +145,56 @@ function S.title()
     love.graphics.setColor(P.mult)
     love.graphics.print("300", rightX + 150, topY + 248)
     love.graphics.setColor(P.dim)
-    love.graphics.print("손 안에서 순서를 바꾸고 실행하세요.", rightX + 50, topY + 286)
+    love.graphics.print("모든 색친구가 무대에 올라갑니다.", rightX + 50, topY + 286)
 end
 
 function S.topUI()
     if G.phase == "title" then return end
 
-    local x, y, w, h = 278, 24, 724, 96
+    local x, y, w, h = C.LX, C.LY, C.LW, 220
     UI.panel(x, y, w, h, 12)
 
     UI.txt("컬러 퍼즐 7", x+18, y+14, P.text, UI.fL)
     
-    UI.pill(x+18, y+54, 78, 24, "월드 " .. tostring(G.ante), P.cMirr, UI.fS)
-    UI.pill(x+104, y+54, 116, 24, gateName(), P.btnR, UI.fS)
+    UI.pill(x+18, y+48, 78, 24, "월드 " .. tostring(G.ante), P.cMirr, UI.fS)
+    UI.pill(x+104, y+48, 116, 24, gateName(), P.btnR, UI.fS)
 
-    local function statBox(sx, label, value, col)
+    local function statBox(sx, sy, label, value, col)
         love.graphics.setColor(0.25, 0.32, 0.44, 0.06)
-        UI.rr("fill", sx, y+16, 112, 64, 8)
+        UI.rr("fill", sx, sy+2, 100, 60, 8)
         love.graphics.setColor(1, 1, 1, 0.86)
-        UI.rr("fill", sx, y+14, 112, 64, 8)
+        UI.rr("fill", sx, sy, 100, 60, 8)
         love.graphics.setColor(P.panelBd)
         love.graphics.setLineWidth(1)
-        UI.rr("line", sx, y+14, 112, 64, 8)
-        UI.txt(label, sx+12, y+21, P.dim, UI.fS)
+        UI.rr("line", sx, sy, 100, 60, 8)
+        UI.txt(label, sx+12, sy+7, P.dim, UI.fS)
         love.graphics.setFont(UI.fL)
         love.graphics.setColor(col)
-        love.graphics.print(value, sx+12, y+42)
+        love.graphics.print(value, sx+12, sy+26)
     end
 
-    statBox(x+250, "목표", tostring(G.targetScore), P.mult)
-    statBox(x+374, "현재 점수", tostring(math.floor(G.dScore)), P.gold)
-    statBox(x+498, "코인", "$" .. tostring(G.gold), P.gold)
+    statBox(x+18, y+84, "목표", tostring(G.targetScore), P.mult)
+    statBox(x+126, y+84, "현재 점수", tostring(math.floor(G.dScore)), P.gold)
+    statBox(x+18, y+152, "코인", "$" .. tostring(G.gold), P.gold)
     
-    if G.stage == 3 then
-        local gimmickDesc = ""
-        if G.bossGimmick == "no_red" then gimmickDesc = "빨강 색친구 쉬어가기"
-        elseif G.bossGimmick == "no_black" then gimmickDesc = "검정 색친구 쉬어가기"
-        elseif G.bossGimmick == "no_discard" then gimmickDesc = "바꾸기 사용 불가"
-        elseif G.bossGimmick == "high_target" then gimmickDesc = "목표 점수 1.5배 증가"
-        end
-        UI.txt(gimmickDesc, x+250, y+82, P.btnR, UI.fS)
-    end
-
     local mx, my = love.mouse.getPosition()
-    local hovReset = mx >= C.RX and mx <= C.RX+C.RW and my >= C.RY and my <= C.RY+C.RH
-    UI.button(C.RX, C.RY, C.RW, C.RH, "재시작", true, hovReset, UI.fS)
+    local btnW, btnH = 84, 34
+    local bx, by = x+134, y+164
+    local hovReset = mx >= bx and mx <= bx+btnW and my >= by and my <= by+btnH
+    UI.button(bx, by, btnW, btnH, "재시작", true, hovReset, UI.fS)
 end
 
 function S.deckUI()
     if G.phase ~= "play" then return end
 
+    local x, y, w, h = C.RX, C.RY, C.RW, C.RH
+    UI.panel(x, y, w, h, 12)
+
     local mx,my = love.mouse.getPosition()
-    local selN = G.selCount()
+    local nCards = #G.hand
 
     -- 주머니 잔량
-    local bx0, by0, bw0, bh0 = C.HCX - 430, C.HY + 54, 92, 54
+    local bx0, by0, bw0, bh0 = x + 30, y + 30, w - 60, 100
     G.hBag = mx >= bx0 and mx <= bx0 + bw0 and my >= by0 and my <= by0 + bh0
     love.graphics.setColor(0.12, 0.08, 0.06, 0.28)
     UI.rr("fill", bx0 + 2, by0 + 4, bw0, bh0, 7)
@@ -205,50 +204,54 @@ function S.deckUI()
     love.graphics.setLineWidth(1.4)
     UI.rr("line", bx0, by0, bw0, bh0, 7)
 
-    local dx = bx0 + 20
-    local dy = by0 + 20
+    local dx = bx0 + 30
+    local dy = by0 + 40
     for j = 2, 0, -1 do
         love.graphics.setColor(P.dim[1],P.dim[2],P.dim[3],0.18+j*0.08)
-        UI.rr("fill", dx-8+j*2, dy-12+j*2, 16, 22, 3)
+        UI.rr("fill", dx-8+j*2, dy-12+j*2, 24, 34, 4)
     end
-    UI.txt("주머니", bx0 + 36, by0 + 8, P.text, UI.fS)
-    UI.txt(tostring(#G.deck), bx0 + 38, by0 + 28, P.gold, UI.fM)
+    UI.txtC("주머니", bx0 + bw0/2, by0 + 16, P.text, UI.fS)
+    UI.txtC(tostring(#G.deck), bx0 + bw0/2, by0 + 46, P.gold, UI.fX)
 
-    local runX, runY, runW, runH = C.HCX - 218, C.HY + 62, 190, 38
-    local canRun = selN > 0
+    -- 실행 및 바꾸기 버튼
+    local runW, runH = w - 60, 60
+    local runX, runY = x + 30, y + h - 180
+    local canRun = nCards > 0
     G.hRun = mx>=runX and mx<=runX+runW and my>=runY and my<=runY+runH
-    UI.button(runX, runY, runW, runH, "실행!", canRun, G.hRun, UI.fL)
+    UI.button(runX, runY, runW, runH, "실행!", canRun, G.hRun, UI.fX)
 
-    local bx, by, bw, bh = C.HCX + 100, C.HY + 62, 118, 38
-    local can = selN > 0 and G.discLeft > 0
+    local bw, bh = w - 60, 50
+    local bx, by = x + 30, y + h - 100
+    local canDiscard = nCards > 0 and G.discLeft > 0
     G.hDiscard = mx>=bx and mx<=bx+bw and my>=by and my<=by+bh
 
-    UI.button(bx, by, bw, bh, "바꾸기", can, G.hDiscard, UI.fM)
+    UI.button(bx, by, bw, bh, "바꾸기", canDiscard, G.hDiscard, UI.fL)
     love.graphics.setFont(UI.fS)
     local rtxt = G.discLeft.."/"..C.MAXDISC
-    love.graphics.setColor(can and P.gold or P.dim)
-    love.graphics.print(rtxt, bx+(bw-UI.fS:getWidth(rtxt))/2, by+24)
+    love.graphics.setColor(canDiscard and P.gold or P.dim)
+    love.graphics.print(rtxt, bx+(bw-UI.fS:getWidth(rtxt))/2, by+32)
 
-    love.graphics.setFont(UI.fS)
+    love.graphics.setFont(UI.fM)
     love.graphics.setColor(canRun and P.gold or P.dim)
-    local pickTxt = selN .. "개 선택"
-    love.graphics.print(pickTxt, runX + (runW - UI.fS:getWidth(pickTxt))/2, runY - 16)
+    local toExec = math.min(C.BN, nCards)
+    local pickTxt = toExec .. "명 모두 출전"
+    love.graphics.print(pickTxt, runX + (runW - UI.fM:getWidth(pickTxt))/2, runY - 22)
 
     if G.noticeTimer > 0 then
         local nc = G.noticeKind == "ok" and P.cMono or P.btnR
         local nw = math.min(260, UI.fS:getWidth(G.noticeText) + 24)
-        UI.pill(C.HCX - nw / 2, C.HY + 112, nw, 22, G.noticeText, nc, UI.fS)
+        UI.pill(C.HCX - nw / 2, C.BY + C.BSH + 20, nw, 22, G.noticeText, nc, UI.fS)
     end
 end
 
 function S.cheatSheet()
     if G.phase == "title" then return end
-    local cx,cw = 24, 226
-    UI.panel(cx, 24, cw, 500, 10)
-    UI.txt("색 규칙", cx+14, 34, P.text, UI.fM)
-    UI.txt("별 / 콤보", cx+cw-78, 37, P.dim, UI.fS)
+    local cx, cy, cw, ch = C.LX, C.LY + 240, C.LW, C.LH - 240
+    UI.panel(cx, cy, cw, ch, 10)
+    UI.txt("색 규칙", cx+14, cy+10, P.text, UI.fM)
+    UI.txt("별 / 콤보", cx+cw-78, cy+13, P.dim, UI.fS)
     love.graphics.setFont(UI.fS)
-    local y = 66
+    local y = cy+42
 
     local function entry(cc, name, desc, chips, mult)
         love.graphics.setColor(cc)
@@ -288,40 +291,41 @@ function S.jokers()
     UI.pill(C.JX+C.JW-62, C.JY+12, 42, 20, #G.jokers .. "/3", P.cMirr, UI.fS)
     
     love.graphics.setFont(UI.fS)
-    local y = 56
     
     if #G.jokers == 0 then
         love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.35)
-        love.graphics.print("비어 있음", C.JX + 18, C.JY + y + 18)
+        UI.txtC("비어 있음", C.JX + C.JW/2, C.JY + C.JH/2, P.dim, UI.fM)
         return
     end
     
-    for _, j in ipairs(G.jokers) do
-        local cx, cy = C.JX + 14, C.JY + y
-        local cw, ch = C.JW - 28, 84
+    local jw = (C.JW - 40) / 3
+    local jh = C.JH - 40
+    local sx = C.JX + 10
+    local sy = C.JY + 30
+    
+    for i, j in ipairs(G.jokers) do
+        local cx, cy = sx + (i-1)*(jw + 10), sy
         
         love.graphics.setColor(0, 0, 0, 0.04)
-        UI.rr("fill", cx, cy + 2, cw, ch, 6)
+        UI.rr("fill", cx, cy + 2, jw, jh, 6)
         
         love.graphics.setColor(1, 1, 1)
-        UI.rr("fill", cx, cy, cw, ch, 6)
+        UI.rr("fill", cx, cy, jw, jh, 6)
         
         love.graphics.setColor(P.cMirr)
         love.graphics.setLineWidth(1.2)
-        UI.rr("line", cx, cy, cw, ch, 6)
+        UI.rr("line", cx, cy, jw, jh, 6)
         
-        UI.txt(j.name, cx + 10, cy + 8, P.text, UI.fM)
+        UI.txtC(j.name, cx + jw/2, cy + 12, P.text, UI.fS)
         
         love.graphics.setFont(UI.fS)
         love.graphics.setColor(P.dim)
         
-        local lineY = cy + 28
+        local lineY = cy + 32
         for line in string.gmatch(j.desc, "[^\n]+") do
-            love.graphics.print(line, cx + 10, lineY)
-            lineY = lineY + 14
+            UI.txtC(line, cx + jw/2, lineY, P.dim, UI.fS)
+            lineY = lineY + 16
         end
-        
-        y = y + ch + 12
     end
 end
 
@@ -460,7 +464,7 @@ function S.scoring()
     local s = G.sc
     if not s.active then return end
 
-    love.graphics.setColor(0.95,0.96,0.98,0.85)
+    love.graphics.setColor(0.04, 0.05, 0.08, 0.75)
     love.graphics.rectangle("fill",0,0,C.SW,C.SH)
 
     if s.phase == "nohand" then
@@ -549,7 +553,7 @@ end
 
 function S.result()
     if G.phase ~= "result" then return end
-    love.graphics.setColor(0.95,0.96,0.98,0.80)
+    love.graphics.setColor(0.04, 0.05, 0.08, 0.85)
     love.graphics.rectangle("fill",0,0,C.SW,C.SH)
 
     local pw,ph = 360,420
@@ -612,7 +616,7 @@ function S.result()
     local gw = pw - 40
     local gh = 70
     
-    love.graphics.setColor(0.96, 0.97, 0.99)
+    love.graphics.setColor(0.12, 0.14, 0.18)
     UI.rr("fill", gx, gy, gw, gh, 6)
     love.graphics.setColor(P.panelBd)
     UI.rr("line", gx, gy, gw, gh, 6)
@@ -747,7 +751,7 @@ end
 function S.shop()
     if G.phase ~= "shop" then return end
     
-    love.graphics.setColor(0.92, 0.95, 0.98, 0.86)
+    love.graphics.setColor(0.04, 0.05, 0.08, 0.88)
     love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
     
     local px, py = C.HCX - 300, 80

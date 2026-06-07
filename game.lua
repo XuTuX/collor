@@ -19,6 +19,7 @@ G.hSlot      = -1      -- 호버 슬롯
 G.hCard      = -1      -- 호버 색친구
 G.detected   = {}
 G.slotAnim   = {}      -- [i] = {t, dur}
+G.execAnim   = { active = false, cards = {}, idx = 0, timer = 0, phase = "idle" }
 
 -- 드래그 관련
 G.dragIndex   = -1
@@ -192,229 +193,89 @@ function G.scoreBoard()
         end
         if G.stage == 3 then
             if G.bossGimmick == "no_red" and string.find(h.pat, "R") then
-                h.chips = 0
-                h.mult = 0
+                h.chips = 0; h.mult = 0
             elseif G.bossGimmick == "no_black" and string.find(h.pat, "K") then
-                h.chips = 0
-                h.mult = 0
+                h.chips = 0; h.mult = 0
             end
         end
     end
 
-    G.rndScore = G.calcTotalScore()
     G.startScoring()
 end
 
-function G.executeSelection()
-    local picked = G.selectedCards()
-    if #picked == 0 then
-        G.notice("색친구를 골라주세요", "warn")
-        return false
-    end
-    G.applyBoard(picked)
-    G.shake = G.shake + 8
-    require("sound").play("place")
-    G.scoreBoard()
-    return true
-end
-
--- ── 관문 시작 ──
-function G.newRound()
-    G.board = {}
-    for i = 1, C.BN do G.board[i] = nil end
-    G.slotAnim = {}
-    G.deck = G.createDeck()
-    G.hand = G.drawCards(C.HN)
-    G.discLeft = C.MAXDISC
-    
-    -- 특별 규칙: 바꾸기 차단
-    if G.stage == 3 and G.bossGimmick == "no_discard" then
-        G.discLeft = 0
-    end
-    
-    G.phase = "play"
-    G.detected = {}
-    G.rndScore = 0
-    G.hSlot = -1
-    G.hCard = -1
-    G.dragIndex = -1
-    G.sc.active = false
-    G.sc.revealed = {}
-    G.noticeText = ""
-    G.noticeTimer = 0
-    G.showBag = false
-    
-    -- 목표 점수 계산 (Ante & Stage 기준 발라트로풍 스케일링)
-    local base = 250
-    if G.ante == 1 then
-        if G.stage == 1 then G.targetScore = 300
-        elseif G.stage == 2 then G.targetScore = 700
-        else G.targetScore = 1500 end
-    else
-        local multi = (G.stage == 1 and 1 or G.stage == 2 and 1.8 or 3.5)
-        G.targetScore = math.floor(base * math.pow(2.4, G.ante - 1) * multi * 10)
-        G.targetScore = math.floor(G.targetScore / 100) * 100
-    end
-    
-    -- 보스 기믹: 목표 점수 1.5배 상승
-    if G.stage == 3 and G.bossGimmick == "high_target" then
-        G.targetScore = math.floor(G.targetScore * 1.5)
-    end
-    
-    G.shake = 0
-    G.particles = {}
-    
-    -- 관문 배너 애니메이션 트리거
-    G.roundStartAnim.t = 0
-    G.roundStartAnim.active = true
-end
-
-function G.reset()
-    G.score = 0
-    G.dScore = 0
-    G.round = 1
-    G.ante = 1
-    G.stage = 1
-    G.gold = 4
-    G.jokers = {}
-    G.bossGimmick = "none"
-    
-    -- 색 규칙 레벨 초기화
-    for name, stats in pairs(G.handStats) do
-        stats.level = 1
-        stats.chips = (name == "Mini Mono" and 30 or name == "Half Mono" and 60 or name == "Tower" and 150 or name == "Half Mirror" and 100 or name == "Grand Mirror" and 400 or name == "Half Step" and 120 or 300)
-        stats.mult = (name == "Mini Mono" and 3 or name == "Half Mono" and 5 or name == "Tower" and 12 or name == "Half Mirror" and 8 or name == "Grand Mirror" and 40 or name == "Half Step" and 10 or 25)
-    end
-    
-    G.deckConfig = {}
-    local perColor = C.DECK / #C.COLORS
-    for _, c in ipairs(C.COLORS) do
-        for _ = 1, perColor do
-            table.insert(G.deckConfig, {name=c.name, color={c.color[1],c.color[2],c.color[3]}})
-        end
-    end
-    
-    G.newRound()
-    G.phase = "title" -- 시작 시 타이틀 화면으로
-end
-
-
-
--- ── 배치 ──
-function G.place(ci, si)
-    if si < 1 or si > C.BN or G.board[si] then return false end
-    local card = G.hand[ci]
-    if not card then return false end
-
-    G.board[si] = {name=card.name, color={card.color[1],card.color[2],card.color[3]}}
-    table.remove(G.hand, ci)
-
-    G.slotAnim[si] = {t=0, dur=0.28}
-    G.shake = G.shake + 3
-    
-    -- 배치 파티클 스폰
-    local sx = C.BX + (si-1)*(C.BSW+C.BGAP) + C.BSW/2
-    local sy = C.BY + C.BSH/2
-    G.spawnParticles(sx, sy, card.color, 12)
-    require("sound").play("place")
-
-    -- 실행 줄이 가득 찼는지 확인
-    local full = true
-    for i = 1, C.BN do if not G.board[i] then full = false; break end end
-    if full then
-        G.detected = D.evaluate(G.board)
-        
-        -- 색 규칙 레벨 수치 주입 및 특별 규칙 필터
-        for _, h in ipairs(G.detected) do
-            local stats = G.handStats[h.name]
-            if stats then
-                h.chips = stats.chips
-                h.mult = stats.mult
-            end
-            -- 보스 기믹 필터링
-            if G.stage == 3 then
-                if G.bossGimmick == "no_red" and string.find(h.pat, "R") then
-                    h.chips = 0
-                    h.mult = 0
-                elseif G.bossGimmick == "no_black" and string.find(h.pat, "K") then
-                    h.chips = 0
-                    h.mult = 0
-                end
-            end
-        end
-        
-        G.rndScore = G.calcTotalScore()
-        G.startScoring()
-    end
-    return true
-end
-
-
--- ── 배치 취소 (회수) ──
-function G.recall(si)
-    if si < 1 or si > C.BN or not G.board[si] then return false end
-    local card = G.board[si]
-    G.board[si] = nil
-    card.sel = false
-    card.spawnT = love.timer.getTime()
-    table.insert(G.hand, card)
-    require("sound").play("recall")
-    return true
-end
-
--- ── 색친구 위치 교환 (이전 입력 방식 호환용) ──
-function G.swap(ci, si)
-    if si < 1 or si > C.BN or not G.board[si] then return false end
-    local cardInHand = G.hand[ci]
-    if not cardInHand then return false end
-    local cardOnBoard = G.board[si]
-    
-    G.board[si] = {name=cardInHand.name, color={cardInHand.color[1],cardInHand.color[2],cardInHand.color[3]}}
-    G.hand[ci] = {name=cardOnBoard.name, color={cardOnBoard.color[1],cardOnBoard.color[2],cardOnBoard.color[3]}, sel=false, spawnT=love.timer.getTime()}
-    
-    G.slotAnim[si] = {t=0, dur=0.28}
-    G.shake = G.shake + 4
-    
-    local sx = C.BX + (si-1)*(C.BSW+C.BGAP) + C.BSW/2
-    local sy = C.BY + C.BSH/2
-    G.spawnParticles(sx, sy, cardInHand.color, 8)
-    require("sound").play("place")
-    return true
-end
-
--- ── 바꾸기 ──
-function G.discard()
-    if G.discLeft <= 0 then
-        G.notice("바꾸기 기회가 없어요", "warn")
-        return
-    end
-    local sel = G.selCards()
-    if #sel == 0 then
-        G.notice("바꿀 색친구를 먼저 골라주세요", "warn")
-        return
-    end
-    G.discLeft = G.discLeft - 1
-    table.sort(sel, function(a,b) return a > b end)
-    for _, i in ipairs(sel) do table.remove(G.hand, i) end
-    local drawn = G.drawCards(#sel)
-    for _, c in ipairs(drawn) do table.insert(G.hand, c) end
-    require("sound").play("discard")
-    G.notice("새 색친구가 왔어요", "ok")
-end
-
-
--- ── 스코어링 ──
 function G.startScoring()
     G.phase = "scoring"
     local s = G.sc
     s.active = true
-    s.hands = G.detected
-    s.idx = 0; s.timer = 0
-    s.dChips = 0; s.dMult = 0
-    s.tChips = 0; s.tMult = 0
-    s.dTotal = 0; s.revealed = {}
-    s.prevDChips = 0; s.prevDMult = 0
-    s.phase = #G.detected == 0 and "nohand" or "reveal"
+    s.idx = 0
+    s.timer = 0
+    s.dChips = 0
+    s.dMult = 1  -- Mult starts at 1
+    s.tChips = 0
+    s.tMult = 1
+    s.dTotal = 0
+    s.prevDChips = 0
+    s.prevDMult = 0
+    s.revealed = {}
+    s.events = {}
+    s.hopIdx = {}  -- Cards currently hopping
+
+    -- 1. Card base scores
+    local uniqueColors = {}
+    for i = 1, C.BN do
+        local c = G.board[i]
+        if c then
+            local base = 10
+            for _, info in ipairs(C.COLORS) do
+                if info.name == c.name then base = info.base or 10; break end
+            end
+            table.insert(s.events, {type="card", idx=i, chips=base, name=c.name})
+            uniqueColors[c.name] = true
+        end
+    end
+
+    -- 2. Diversity Bonus
+    local ucCount = 0
+    for _ in pairs(uniqueColors) do ucCount = ucCount + 1 end
+    if ucCount >= 3 then
+        local c, m = 0, 0
+        if ucCount == 3 then c=10; m=1
+        elseif ucCount == 4 then c=30; m=2
+        else c=50; m=3 end
+        table.insert(s.events, {type="diversity", count=ucCount, chips=c, mult=m})
+    end
+
+    -- 3. Rules
+    for _, h in ipairs(G.detected) do
+        table.insert(s.events, {type="rule", rule=h})
+    end
+
+    -- 4. Jokers
+    local hasMirror, hasStep = false, false
+    for _, h in ipairs(G.detected) do
+        if h.cat == "MIRROR" and h.chips > 0 then hasMirror = true end
+        if h.cat == "STEP" and h.chips > 0 then hasStep = true end
+    end
+    for _, j in ipairs(G.jokers) do
+        local trig, jc, jm, jx = false, 0, 0, 1
+        if j.id == "shiny_eye" and uniqueColors["White"] then trig=true; jc=40 end
+        if j.id == "dark_side" and uniqueColors["Black"] then trig=true; jm=4 end
+        if j.id == "mirror_shield" and hasMirror then trig=true; jx=1.5 end
+        if j.id == "rainbow" and ucCount >= 4 then trig=true; jc=50; jm=5 end
+        if j.id == "ladder_master" and hasStep then trig=true; jc=80 end
+        if trig then
+            table.insert(s.events, {type="joker", name=j.name, chips=jc, mult=jm, xmult=jx})
+        end
+    end
+
+    -- 5. Total
+    table.insert(s.events, {type="total"})
+    
+    if #s.events == 1 then -- Only total, no cards (shouldn't happen but safe)
+        s.phase = "nohand"
+    else
+        s.phase = "process"
+    end
 end
 
 function G.updateScoring(dt)
@@ -422,54 +283,65 @@ function G.updateScoring(dt)
     if not s.active then return end
     s.timer = s.timer + dt
 
+    local function lr(a,b,t) return a + (b-a) * math.max(0,math.min(1,t)) end
+
     if s.phase == "nohand" then
         if s.timer > 1.8 then
             s.active = false
-            G.score = G.score + G.rndScore
             G.phase = "result"
-            if G.score >= G.targetScore then
-                require("sound").play("clear")
-            end
         end
         return
     end
 
-    local function lr(a,b,t) return a + (b-a) * math.max(0,math.min(1,t)) end
-
-    if s.phase == "reveal" then
-        if s.timer >= 0.5 then
-            s.idx = s.idx + 1; s.timer = 0
-            if s.idx <= #s.hands then
-                local h = s.hands[s.idx]
-                table.insert(s.revealed, h)
-                s.tChips = s.tChips + h.chips
-                s.tMult  = s.tMult  + h.mult
+    if s.phase == "process" then
+        if s.timer >= 0.4 then
+            s.idx = s.idx + 1
+            s.timer = 0
+            s.hopIdx = {} -- Clear hopping cards
+            
+            if s.idx <= #s.events then
+                local e = s.events[s.idx]
                 
-                require("sound").play("reveal")
-                G.shake = G.shake + 8
-                
-                -- 색 규칙 출현 파티클
-                for j = 1, C.BN do
-                    if G.board[j] then
-                        local sx = C.BX + (j-1)*(C.BSW+C.BGAP) + C.BSW/2
-                        local sy = C.BY + C.BSH/2
-                        G.spawnParticles(sx, sy, G.board[j].color, 5)
-                    end
+                if e.type == "card" then
+                    s.tChips = s.tChips + e.chips
+                    s.hopIdx[e.idx] = true
+                    require("sound").play("tick")
+                    G.shake = G.shake + 2
+                    
+                elseif e.type == "diversity" then
+                    s.tChips = s.tChips + e.chips
+                    s.tMult = s.tMult + e.mult
+                    G.notice(e.count.."색 보너스!", "ok")
+                    require("sound").play("reveal")
+                    G.shake = G.shake + 5
+                    for i=1, C.BN do if G.board[i] then s.hopIdx[i] = true end end
+                    
+                elseif e.type == "rule" then
+                    s.tChips = s.tChips + e.rule.chips
+                    s.tMult = s.tMult + e.rule.mult
+                    table.insert(s.revealed, e.rule)
+                    require("sound").play("reveal")
+                    G.shake = G.shake + 8
+                    for _, hi in ipairs(e.rule.idx or {}) do s.hopIdx[hi] = true end
+                    
+                elseif e.type == "joker" then
+                    s.tChips = s.tChips + e.chips
+                    s.tMult = s.tMult + e.mult
+                    s.tMult = s.tMult * e.xmult
+                    G.notice(e.name.." 발동!", "ok")
+                    require("sound").play("reveal")
+                    G.shake = G.shake + 5
+                    
+                elseif e.type == "total" then
+                    G.rndScore = math.floor(s.tChips * s.tMult)
+                    s.phase = "total"
+                    s.timer = 0
                 end
-            else
-                s.phase = "total"; s.timer = 0
             end
         end
         
         s.dChips = lr(s.dChips, s.tChips, dt * 10)
         s.dMult  = lr(s.dMult,  s.tMult,  dt * 10)
-        
-        -- 점수 누적 틱 사운드
-        if math.floor(s.dChips) > s.prevDChips or math.floor(s.dMult) > s.prevDMult then
-            require("sound").play("tick")
-        end
-        s.prevDChips = math.floor(s.dChips)
-        s.prevDMult = math.floor(s.dMult)
     end
 
     if s.phase == "total" then
@@ -492,7 +364,6 @@ function G.updateScoring(dt)
     end
 end
 
-
 -- ── 파티클 스폰 ──
 function G.spawnParticles(x, y, color, count)
     count = count or 10
@@ -510,61 +381,6 @@ function G.spawnParticles(x, y, color, count)
             maxAge = love.math.random(0.3, 0.6)
         })
     end
-end
-
--- ── 도우미 및 상점 헬퍼 함수 ──
-function G.applyJokers(tc, tm)
-    local colorsOnBoard = {}
-    local hasMirror = false
-    local hasStep = false
-    
-    for i = 1, C.BN do
-        if G.board[i] then
-            colorsOnBoard[G.board[i].name] = true
-        end
-    end
-    
-    local uniqueColorCount = 0
-    for _ in pairs(colorsOnBoard) do uniqueColorCount = uniqueColorCount + 1 end
-    
-    for _, h in ipairs(G.detected) do
-        if h.cat == "MIRROR" and h.chips > 0 then hasMirror = true end
-        if h.cat == "STEP" and h.chips > 0 then hasStep = true end
-    end
-    
-    local explain = {}
-    for _, j in ipairs(G.jokers) do
-        if j.id == "shiny_eye" and colorsOnBoard["White"] then
-            tc = tc + 40
-            table.insert(explain, j.name .. " (+40 별)")
-        elseif j.id == "dark_side" and colorsOnBoard["Black"] then
-            tm = tm + 4
-            table.insert(explain, j.name .. " (+4 콤보)")
-        elseif j.id == "mirror_shield" and hasMirror then
-            tm = tm * 1.5
-            table.insert(explain, j.name .. " (x1.5 콤보)")
-        elseif j.id == "rainbow" and uniqueColorCount >= 4 then
-            tc = tc + 50
-            tm = tm + 5
-            table.insert(explain, j.name .. " (+50 별, +5 콤보)")
-        elseif j.id == "ladder_master" and hasStep then
-            tc = tc + 80
-            table.insert(explain, j.name .. " (+80 별)")
-        end
-    end
-    
-    return math.floor(tc), math.floor(tm), explain
-end
-
-function G.calcTotalScore()
-    local tc, tm = 0, 0
-    for _, h in ipairs(G.detected) do
-        tc = tc + h.chips
-        tm = tm + h.mult
-    end
-    local finalChips, finalMult, explain = G.applyJokers(tc, tm)
-    G.jokerExplain = explain
-    return finalChips * finalMult
 end
 
 -- 코인 획득 계산
@@ -748,6 +564,35 @@ function G.update(dt)
     -- 부드러운 스코어
     G.dScore = G.dScore + (G.score - G.dScore) * math.min(1, dt * 6)
     if math.abs(G.dScore - G.score) < 1 then G.dScore = G.score end
+    
+    -- 실행 애니메이션
+    if G.phase == "executing" and G.execAnim.active then
+        local a = G.execAnim
+        a.timer = a.timer + dt
+        if a.phase == "flying" then
+            if a.timer >= 0.15 then -- 카드 1개당 딜레이
+                local card = a.cards[a.idx]
+                G.board[a.idx] = {name=card.name, color={card.color[1],card.color[2],card.color[3]}}
+                G.slotAnim[a.idx] = {t=0, dur=0.28}
+                G.shake = G.shake + 3
+                
+                local sx = C.BX + (a.idx-1)*(C.BSW+C.BGAP) + C.BSW/2
+                local sy = C.BY + C.BSH/2
+                G.spawnParticles(sx, sy, card.color, 12)
+                require("sound").play("place")
+                
+                a.idx = a.idx + 1
+                a.timer = 0
+                
+                if a.idx > #a.cards then
+                    a.phase = "done"
+                    a.active = false
+                    G.scoreBoard()
+                end
+            end
+        end
+    end
+    
     -- 스코어링
     G.updateScoring(dt)
 end

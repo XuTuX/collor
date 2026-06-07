@@ -50,43 +50,80 @@ end
 
 function UI.panel(x, y, w, h, r)
     r = r or 10
-    love.graphics.setColor(0.20, 0.27, 0.40, 0.08)
-    UI.rr("fill", x + 2, y + 5, w, h, r)
-    love.graphics.setColor(0.20, 0.27, 0.40, 0.06)
-    UI.rr("fill", x, y + 2, w, h, r)
-
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.4)
+    UI.rr("fill", x + 6, y + 8, w, h, r)
+    
+    -- Main background
     love.graphics.setColor(P.panel)
     UI.rr("fill", x, y, w, h, r)
-    love.graphics.setColor(P.panelHi[1], P.panelHi[2], P.panelHi[3], 0.75)
-    UI.rr("fill", x + 1, y + 1, w - 2, math.max(10, h * 0.22), math.max(4, r - 2))
+    
+    -- Highlight
+    love.graphics.setColor(P.panelHi[1], P.panelHi[2], P.panelHi[3], 0.4)
+    UI.rr("fill", x, y, w, math.max(10, h * 0.15), r)
+    
+    -- Border
     love.graphics.setColor(P.panelBd)
+    love.graphics.setLineWidth(3)
+    UI.rr("line", x, y, w, h, r)
+    love.graphics.setColor(P.panelBd[1]*1.5, P.panelBd[2]*1.5, P.panelBd[3]*1.5, 0.5)
     love.graphics.setLineWidth(1)
     UI.rr("line", x, y, w, h, r)
 end
 
 function UI.button(x, y, w, h, label, active, hover, font)
     font = font or UI.fM
-    love.graphics.setColor(0.25, 0.24, 0.22, 0.16)
-    UI.rr("fill", x + 1, y + 3, w, h, 7)
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.5)
+    UI.rr("fill", x + 3, y + 5, w, h, 8)
+    
+    -- Base color
     if active then
         love.graphics.setColor(hover and P.btnRH or P.btnR)
     else
         love.graphics.setColor(P.btnG)
     end
-    UI.rr("fill", x, y, w, h, 7)
-    love.graphics.setColor(1, 1, 1, active and 0.16 or 0.06)
-    UI.rr("fill", x + 1, y + 1, w - 2, h * 0.45, 6)
-    love.graphics.setColor(active and P.white or {0.55, 0.57, 0.62})
+    UI.rr("fill", x, y, w, h, 8)
+    
+    -- Top bright highlight
+    love.graphics.setColor(1, 1, 1, active and 0.25 or 0.1)
+    UI.rr("fill", x, y, w, h * 0.3, 8)
+    
+    -- Border
+    if hover and active then
+        love.graphics.setColor(1, 1, 1, 0.9)
+    else
+        love.graphics.setColor(0, 0, 0, 0.8)
+    end
+    love.graphics.setLineWidth(hover and active and 3 or 2)
+    UI.rr("line", x, y, w, h, 8)
+    
+    -- Text
     love.graphics.setFont(font)
+    love.graphics.setColor(0,0,0,0.5)
+    love.graphics.print(label, x + (w - font:getWidth(label)) / 2 + 1, y + (h - font:getHeight()) / 2 + 2)
+    love.graphics.setColor(active and P.white or {0.6, 0.6, 0.6})
     love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
 end
 
 function UI.pill(x, y, w, h, label, col, font)
     font = font or UI.fS
-    love.graphics.setColor(col[1], col[2], col[3], 0.95)
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.4)
+    UI.rr("fill", x + 2, y + 2, w, h, math.floor(h / 2))
+    
+    love.graphics.setColor(col[1], col[2], col[3], 1.0)
     UI.rr("fill", x, y, w, h, math.floor(h / 2))
-    love.graphics.setColor(1, 1, 1, 0.15)
-    UI.rr("fill", x + 1, y + 1, w - 2, h * 0.45, math.floor(h / 2))
+    
+    -- Highlight
+    love.graphics.setColor(1, 1, 1, 0.25)
+    UI.rr("fill", x, y, w, h * 0.35, math.floor(h / 2))
+    
+    -- Border
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.setLineWidth(1.5)
+    UI.rr("line", x, y, w, h, math.floor(h / 2))
+    
     love.graphics.setColor(P.white)
     love.graphics.setFont(font)
     love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)

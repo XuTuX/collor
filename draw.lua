@@ -156,6 +156,11 @@ function R.board()
                 sc = UI.easeBack(p)
                 offY = (1 - UI.easeCubic(p)) * (-16)
             end
+            
+            if G.sc.active and G.sc.hopIdx and G.sc.hopIdx[i] then
+                offY = offY - 24
+            end
+
             local tx = sx + C.BSW/2
             local ty = sy + C.BSH/2 - 2 + offY
             love.graphics.push()
@@ -257,6 +262,43 @@ function R.particles()
 end
 
 ------------------------------------------------------------
+-- 실행 애니메이션
+------------------------------------------------------------
+function R.execAnimation()
+    if G.phase == "executing" and G.execAnim.active then
+        local a = G.execAnim
+        local total = #a.cards
+        local mid = (total + 1) / 2
+        for i, card in ipairs(a.cards) do
+            if i >= a.idx then
+                local sx = C.BX + (i-1)*(C.BSW+C.BGAP) + C.BSW/2
+                local sy = C.BY + C.BSH/2
+                
+                local startX = C.HCX + (i - mid) * C.HSPC
+                local startY = C.HY
+                
+                local tx, ty = startX, startY
+                if i == a.idx then
+                    local p = math.min(1, a.timer / 0.15)
+                    p = p * p * (3 - 2 * p) -- smoothstep
+                    tx = startX + (sx - startX) * p
+                    ty = startY + (sy - startY) * p
+                end
+                
+                love.graphics.push()
+                local sc = 1.0
+                if i == a.idx then sc = 1.0 + math.sin(math.min(1, a.timer/0.15) * math.pi) * 0.2 end
+                love.graphics.translate(tx, ty)
+                love.graphics.scale(sc, sc)
+                love.graphics.translate(-tx, -ty)
+                R.character(tx, ty, C.HCR, card)
+                love.graphics.pop()
+            end
+        end
+    end
+end
+
+------------------------------------------------------------
 -- 전체 그리기
 ------------------------------------------------------------
 function R.all()
@@ -277,6 +319,7 @@ function R.all()
     S.topUI()
     R.board()
     R.hand()
+    R.execAnimation()
     S.deckUI()
     S.cheatSheet()
     

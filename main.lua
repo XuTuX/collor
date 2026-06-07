@@ -31,7 +31,6 @@ function love.update(dt)
             local off = i - mid
             local cx = C.HCX + off * C.HSPC
             local cy = C.HY
-            if G.hand[i].sel then cy = cy - 22 end
 
             local hr = C.HCR + 8
             if G.prevHCard == i then
@@ -184,7 +183,7 @@ function love.mousepressed(x, y, btn)
 
         local runX, runY, runW, runH = C.HCX - 218, C.HY + 62, 190, 38
         if x >= runX and x <= runX+runW and y >= runY and y <= runY+runH then
-            G.executeSelection()
+            G.executeHand()
             return
         end
 
@@ -208,9 +207,7 @@ function love.mousereleased(x, y, btn)
         local dx = x - G.dragStartPos.x
         local dy = y - G.dragStartPos.y
         local dist = math.sqrt(dx * dx + dy * dy)
-        if dist < 8 then
-            G.toggleSelect(dragI)
-        else
+        if dist >= 8 then
             G.reorderHand(dragI, x)
         end
     end
@@ -253,7 +250,7 @@ function love.keypressed(key)
     end
 
     if G.phase == "play" and (key == "return" or key == "space") then
-        G.executeSelection()
+        G.executeHand()
         return
     end
 
