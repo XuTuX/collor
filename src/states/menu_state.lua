@@ -114,7 +114,9 @@ end
 
 -- 마우스 눌림 처리
 function MenuState.mousepressed(x, y, btn)
-    if btn ~= 1 or not G then return end
+    if not G then return end
+    -- Support both Love2D 11+ (numeric btn=1) and 0.10- (string btn="l")
+    if btn ~= 1 and btn ~= "l" then return end
     
     local cx = C.SW / 2
     local py = C.SH / 2 - 440 / 2 - 20

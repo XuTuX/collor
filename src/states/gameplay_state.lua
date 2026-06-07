@@ -19,6 +19,7 @@ local Effect = require("systems.effect_system")
 local Anim = require("systems.animation_system")
 local ScoreSys = require("systems.score_system")
 local TurnManager = require("gameplay.turn_manager")
+local Tile = require("gameplay.tile")
 local MathUtils = require("utils.math")
 
 local G = nil

@@ -1,9 +1,41 @@
 ------------------------------------------------------------
--- main.lua · 루트 브릿지 (src 디렉토리 래퍼)
+-- main.lua · 루트 브릿지 및 메인 진입점
 ------------------------------------------------------------
+io.stdout:setvbuf("no")
+
 -- Love2D 가상 파일시스템의 require 검색 경로에 src/ 추가
 local requirePath = love.filesystem.getRequirePath()
 love.filesystem.setRequirePath(requirePath .. ";src/?.lua;src/?/init.lua")
 
--- 실제 게임 구현체 로드
-require("src.main")
+local Game = require("core.game")
+
+-- 초기 로드
+function love.load()
+    Game.init()
+    Game.reset()
+end
+
+-- 매 프레임 업데이트
+function love.update(dt)
+    Game.update(dt)
+end
+
+-- 화면 렌더링
+function love.draw()
+    Game.stateMachine:draw()
+end
+
+-- 마우스 클릭 입력 전달
+function love.mousepressed(x, y, button)
+    Game.mousepressed(x, y, button)
+end
+
+-- 마우스 떼어짐 입력 전달
+function love.mousereleased(x, y, button)
+    Game.mousereleased(x, y, button)
+end
+
+-- 키보드 입력 전달
+function love.keypressed(key)
+    Game.keypressed(key)
+end

@@ -13,6 +13,7 @@ local Audio = require("systems.audio_system")
 local Effect = require("systems.effect_system")
 local Anim = require("systems.animation_system")
 local ScoreSys = require("systems.score_system")
+local Tile = require("gameplay.tile")
 
 -- ── 전역 데이터 상태 초기 정의 ──
 Game.board       = {}
