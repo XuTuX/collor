@@ -1,7 +1,7 @@
 ------------------------------------------------------------
--- sound.lua · 절차적 오디오 합성기 (리소스 프리 효과음)
+-- audio_system.lua · 절차적 오디오 합성기 (리소스 프리 효과음)
 ------------------------------------------------------------
-local S = {}
+local AudioSystem = {}
 local sources = {}
 
 -- 헬퍼: 빔/스윕 효과음 데이터 생성
@@ -69,7 +69,7 @@ local function createChord(freqs, duration, type, volume)
 end
 
 -- 효과음 사전 생성
-function S.init()
+function AudioSystem.init()
     -- 1. 색친구 선택 (짧은 고음 사인파)
     sources.select = createSweep(400, 700, 0.07, "sine", 0.12)
     -- 2. 색친구 적용 (짧고 묵직한 삼각파)
@@ -88,8 +88,8 @@ function S.init()
     sources.gameover = createChord({196.00, 233.08, 293.66}, 0.85, "triangle", 0.15)
 end
 
--- 효과음 재생 (다중 중첩 재생을 위해 복제 활용)
-function S.play(name)
+-- 효과음 재생
+function AudioSystem.play(name)
     local src = sources[name]
     if src then
         local clone = src:clone()
@@ -97,4 +97,4 @@ function S.play(name)
     end
 end
 
-return S
+return AudioSystem

@@ -1,0 +1,63 @@
+------------------------------------------------------------
+-- joker_system.lua · 도우미(조커) 로직 및 상점 상호작용 관리
+------------------------------------------------------------
+local JokerSystem = {}
+
+-- 도우미 소지 한도 체크
+function JokerSystem.canAddJoker(ownedJokers)
+    return #ownedJokers < 3
+end
+
+-- 점수 산정 과정에서 도우미들의 특수 효과를 체크하여 이벤트 큐에 삽입
+function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatterns, eventsList)
+    local hasMirror = false
+    local hasStep = false
+    
+    for _, h in ipairs(detectedPatterns or {}) do
+        if h.cat == "MIRROR" and h.chips > 0 then 
+            hasMirror = true 
+        end
+        if h.cat == "STEP" and h.chips > 0 then 
+            hasStep = true 
+        end
+    end
+    
+    for _, j in ipairs(ownedJokers or {}) do
+        local trigger = false
+        local bonusChips = 0
+        local bonusMult = 0
+        local bonusXMult = 1.0
+        
+        if j.id == "shiny_eye" and uniqueColors["White"] then
+            trigger = true
+            bonusChips = 40
+        elseif j.id == "dark_side" and uniqueColors["Black"] then
+            trigger = true
+            bonusMult = 4
+        elseif j.id == "mirror_shield" and hasMirror then
+            trigger = true
+            bonusXMult = 1.5
+        elseif j.id == "rainbow" and ucCount >= 4 then
+            trigger = true
+            bonusChips = 50
+            bonusMult = 5
+        elseif j.id == "ladder_master" and hasStep then
+            trigger = true
+            bonusChips = 80
+        elseif j.id == "gold_rush" then
+            -- "gold_rush" 는 라운드 보상 계산(balance.lua) 시 적용되므로 득점 단계에서는 스킵
+        end
+        
+        if trigger then
+            table.insert(eventsList, {
+                type = "joker",
+                name = j.name,
+                chips = bonusChips,
+                mult = bonusMult,
+                xmult = bonusXMult
+            })
+        end
+    end
+end
+
+return JokerSystem
