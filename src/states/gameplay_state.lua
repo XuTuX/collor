@@ -79,6 +79,9 @@ function GameplayState.draw()
     -- 4. 오버레이 및 상위 모달 그리기
     HUD.drawBagOverlay(G)
     GameplayState.drawGameOver()
+    
+    -- 5. 라운드 진입 배너 애니메이션 그리기
+    GameplayState.drawBanner()
 end
 
 -- 내 손패 카드 렌더링 (R.hand 이식)
@@ -379,6 +382,52 @@ function GameplayState.keypressed(key)
             TurnManager.executeHand(G)
         end
     end
+end
+
+-- 라운드 진입 배너 그리기 (S.roundStartAnim 이식)
+function GameplayState.drawBanner()
+    local AnimSys = require("systems.animation_system")
+    local a = AnimSys.getRoundStartAnim()
+    if not a or not a.active then return end
+    
+    local p = a.t / a.dur
+    local alpha = 1
+    if p < 0.20 then
+        alpha = p / 0.20
+    elseif p > 0.80 then
+        alpha = (1 - p) / 0.20
+    end
+    
+    love.graphics.setColor(0.08, 0.08, 0.12, alpha * 0.90)
+    love.graphics.rectangle("fill", 0, C.SH/2 - 90, C.SW, 180)
+    
+    love.graphics.setColor(P.btnR[1], P.btnR[2], P.btnR[3], alpha * 0.6)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(0, C.SH/2 - 90, C.SW, C.SH/2 - 90)
+    love.graphics.line(0, C.SH/2 + 90, C.SW, C.SH/2 + 90)
+    
+    love.graphics.setFont(HUD.fXX)
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], alpha)
+    
+    local gateTitle = G.stage == 1 and "쉬운 관문" or G.stage == 2 and "도전 관문" or "특별 관문"
+    local title = "월드 " .. G.ante .. " - " .. gateTitle
+    love.graphics.print(title, (C.SW - HUD.fXX:getWidth(title))/2, C.SH/2 - 60)
+    
+    love.graphics.setFont(HUD.fL)
+    love.graphics.setColor(1, 1, 1, alpha)
+    local subText = ""
+    if G.stage == 3 then
+        local desc = require("entities/modifier").getBossGimmickBannerDesc(G.bossGimmick)
+        subText = "특별 규칙: " .. desc
+    else
+        subText = "목표 점수: " .. G.targetScore
+    end
+    love.graphics.print(subText, (C.SW - HUD.fL:getWidth(subText))/2, C.SH/2 + 10)
+    
+    love.graphics.setFont(HUD.fS)
+    love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], alpha * 0.7)
+    local startTxt = "준비하세요..."
+    love.graphics.print(startTxt, (C.SW - HUD.fS:getWidth(startTxt))/2, C.SH/2 + 50)
 end
 
 return GameplayState

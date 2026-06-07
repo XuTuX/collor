@@ -76,9 +76,9 @@ function ScoreSystem.start(board, detectedPatterns, jokers, G)
     for _ in pairs(uniqueColors) do ucCount = ucCount + 1 end
     if ucCount >= 3 then
         local c, m = 0, 0
-        if ucCount == 3 then c = 20; m = 2
-        elseif ucCount == 4 then c = 60; m = 4
-        else c = 120; m = 8 end
+        if ucCount == 3 then c = 5; m = 2
+        elseif ucCount == 4 then c = 15; m = 3
+        else c = 30; m = 4 end
         table.insert(sc.events, {type="diversity", count=ucCount, chips=c, mult=m})
     end
 
@@ -90,7 +90,27 @@ function ScoreSystem.start(board, detectedPatterns, jokers, G)
             for _, info in ipairs(CharactersData) do
                 if info.name == c.name then base = info.base or 10; break end
             end
-            table.insert(sc.events, {type="card", idx=i, chips=base, name=c.name})
+            
+            -- 특별 에디션 보너스 적용
+            local extraChips = 0
+            local extraMult = 0
+            if c.edition == "foil" then
+                extraChips = 15
+            elseif c.edition == "holo" then
+                extraMult = 3
+            elseif c.edition == "gold" and G then
+                G.gold = G.gold + 1
+                G.notice("황금 카드 보너스! +$1", "ok")
+            end
+            
+            table.insert(sc.events, {
+                type = "card",
+                idx = i,
+                chips = base + extraChips,
+                mult = extraMult,
+                name = c.name,
+                edition = c.edition
+            })
         end
     end
 
@@ -101,7 +121,7 @@ function ScoreSystem.start(board, detectedPatterns, jokers, G)
 
     -- 4. 보유 도우미 적용 (Jokers Check)
     local JokerSystem = require("systems.joker_system")
-    JokerSystem.evaluate(jokers, uniqueColors, ucCount, detectedPatterns, sc.events)
+    JokerSystem.evaluate(jokers, uniqueColors, ucCount, detectedPatterns, sc.events, board, G)
 
     -- 5. 총합 (Total)
     table.insert(sc.events, {type="total"})
@@ -137,13 +157,27 @@ function ScoreSystem.update(dt, G)
                 
                 if e.type == "card" then
                     sc.tChips = sc.tChips + e.chips
+                    sc.tMult = sc.tMult + (e.mult or 0)
                     sc.hopIdx[e.idx] = true
                     Audio.play("tick")
                     G.shake = G.shake + 2
                     
                     local sx = C.BX + (e.idx-1)*(C.BSW+C.BGAP) + C.BSW/2
                     local sy = C.BY - 10
-                    Effect.spawnTextParticle(sx, sy, "+" .. e.chips, C.P.chip)
+                    
+                    local msg = "+" .. e.chips
+                    local col = C.P.chip
+                    if e.edition == "foil" then
+                        msg = "+" .. e.chips .. " (포일!)"
+                        col = C.P.cMirr
+                    elseif e.edition == "holo" then
+                        msg = "+" .. e.chips .. "  x" .. e.mult .. " (홀로!)"
+                        col = C.P.mult
+                    elseif e.edition == "gold" then
+                        msg = "+" .. e.chips .. " (황금!)"
+                        col = C.P.gold
+                    end
+                    Effect.spawnTextParticle(sx, sy, msg, col)
                     
                 elseif e.type == "diversity" then
                     sc.tChips = sc.tChips + e.chips

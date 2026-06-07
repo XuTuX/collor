@@ -87,6 +87,33 @@ function Character.draw(x, y, rad, blk, opts)
         love.graphics.setLineWidth(2.5)
         love.graphics.arc("line", "open", x, y + bob, rad + 4, 0.4, math.pi - 0.4)
     end
+
+    -- 특별 에디션 신비로운 오라 이펙트
+    if blk.edition and blk.edition ~= "normal" then
+        local time = love.timer.getTime()
+        local ec = P.gold
+        if blk.edition == "foil" then
+            ec = P.cMirr -- 보라빛/하늘빛 신비로운 포일
+        elseif blk.edition == "holo" then
+            ec = P.mult -- 붉은빛 홀로그램
+        elseif blk.edition == "gold" then
+            ec = P.gold -- 찬란한 황금빛
+        end
+        
+        -- 외곽 빛 퍼짐 링
+        love.graphics.setColor(ec[1], ec[2], ec[3], 0.3 + math.sin(time * 6) * 0.15)
+        love.graphics.setLineWidth(1.8)
+        love.graphics.circle("line", x, y + bob, rad + 3)
+        
+        -- 미세한 회전 스파크 파티클
+        love.graphics.setColor(ec[1], ec[2], ec[3], 0.7)
+        for a = 1, 4 do
+            local angle = time * 2.2 + a * (math.pi / 2)
+            local px = x + math.cos(angle) * (rad + 3.5)
+            local py = y + bob + math.sin(angle) * (rad + 3.5)
+            love.graphics.circle("fill", px, py, 1.6)
+        end
+    end
 end
 
 return Character

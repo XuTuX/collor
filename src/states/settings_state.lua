@@ -269,62 +269,7 @@ function SettingsState.draw()
     local countStr = tostring(#G.deckConfig)
     Button.txtC(countStr, dx + dw/2, dy + 34, P.gold, HUD.fX)
     
-    love.graphics.setFont(HUD.fS)
     Button.txtC("개", dx + dw/2, dy + 66, P.dim, HUD.fS)
-    
-    -- 실시간 배너 애니메이션 그리기
-    local AnimSys = require("systems.animation_system")
-    local startAnim = AnimSys.getRoundStartAnim()
-    if startAnim.active then
-        require("states.result_state").drawRoundStartBanner() -- 헬퍼를 경유해 그리거나 settings_state 내에서 직접 렌더링
-        SettingsState.drawBanner()
-    end
-end
-
--- 라운드 진입 배너 그리기 (S.roundStartAnim 이식)
-function SettingsState.drawBanner()
-    local AnimSys = require("systems.animation_system")
-    local a = AnimSys.getRoundStartAnim()
-    if not a or not a.active then return end
-    
-    local p = a.t / a.dur
-    local alpha = 1
-    if p < 0.20 then
-        alpha = p / 0.20
-    elseif p > 0.80 then
-        alpha = (1 - p) / 0.20
-    end
-    
-    love.graphics.setColor(0.08, 0.08, 0.12, alpha * 0.90)
-    love.graphics.rectangle("fill", 0, C.SH/2 - 90, C.SW, 180)
-    
-    love.graphics.setColor(P.btnR[1], P.btnR[2], P.btnR[3], alpha * 0.6)
-    love.graphics.setLineWidth(2)
-    love.graphics.line(0, C.SH/2 - 90, C.SW, C.SH/2 - 90)
-    love.graphics.line(0, C.SH/2 + 90, C.SW, C.SH/2 + 90)
-    
-    love.graphics.setFont(HUD.fXX)
-    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], alpha)
-    
-    local gateTitle = G.stage == 1 and "쉬운 관문" or G.stage == 2 and "도전 관문" or "특별 관문"
-    local title = "월드 " .. G.ante .. " - " .. gateTitle
-    love.graphics.print(title, (C.SW - HUD.fXX:getWidth(title))/2, C.SH/2 - 60)
-    
-    love.graphics.setFont(HUD.fL)
-    love.graphics.setColor(1, 1, 1, alpha)
-    local subText = ""
-    if G.stage == 3 then
-        local desc = require("entities/modifier").getBossGimmickBannerDesc(G.bossGimmick)
-        subText = "특별 규칙: " .. desc
-    else
-        subText = "목표 점수: " .. G.targetScore
-    end
-    love.graphics.print(subText, (C.SW - HUD.fL:getWidth(subText))/2, C.SH/2 + 10)
-    
-    love.graphics.setFont(HUD.fS)
-    love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], alpha * 0.7)
-    local startTxt = "준비하세요..."
-    love.graphics.print(startTxt, (C.SW - HUD.fS:getWidth(startTxt))/2, C.SH/2 + 50)
 end
 
 -- 상점 아이템 랜덤 구성 생성 (G.enterShop 이식)
@@ -346,6 +291,11 @@ function SettingsState.enterShop(gameInstance)
         {type="joker", id="rainbow", name="무지개", desc="다른 색이 4종류\n이상이면\n+60 별, +6 콤보", price=7},
         {type="joker", id="ladder_master", name="계단 대장", desc="계단 규칙이 나오면\n+100 별", price=5},
         {type="joker", id="gold_rush", name="코인 주머니", desc="관문 종료 시\n+$4 코인 추가", price=5},
+        {type="joker", id="chaos", name="혼돈의 카오스", desc="맞는 규칙이 없으면\nx2.2 콤보", price=6},
+        {type="joker", id="savings", name="저축왕", desc="보유한 코인 $2 마다\n+1 콤보 추가", price=6},
+        {type="joker", id="mono_pride", name="일편단심", desc="보드판 전체가 단 1가지\n색이면 x2.5 콤보", price=8},
+        {type="joker", id="burning", name="불타는 열정", desc="보드판 위의 빨강\n카드 1개당 +3 콤보", price=5},
+        {type="joker", id="lemonade", name="레몬에이드", desc="보드판 위의 노랑\n카드 1개당 +25 별", price=5},
 
         -- 색친구 주머니 추가 및 삭제
         {type="deck_add", colorName="Red", colorVal={0.92,0.22,0.25}, name="빨강 추가", desc="빨강 색친구 1개를\n주머니에 계속 추가", price=2},
