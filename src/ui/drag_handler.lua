@@ -24,8 +24,8 @@ function DragHandler.updateHover(G, mx, my)
     local mid = (n + 1) / 2
     for i = n, 1, -1 do
         local card = G.hand[i]
-        local cx = card.visX or (C.HCX + (i - mid) * C.HSPC)
-        local cy = C.HY
+        local cx = card.visX or (C.HCX_HAND + (i - mid) * C.HSPC)
+        local cy = C.HY_HAND
         if card.sel then
             cy = cy - 22
         end

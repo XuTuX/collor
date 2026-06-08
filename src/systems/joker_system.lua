@@ -12,14 +12,14 @@ end
 -- 점수 산정 과정에서 증강체들의 특수 효과를 체크하여 이벤트 큐에 삽입
 function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatterns, eventsList, board, G)
     local hasMirror = false
-    local hasStep = false
+    local hasCrescendo = false
     
     for _, h in ipairs(detectedPatterns or {}) do
         if h.cat == "MIRROR" and h.chips > 0 then 
             hasMirror = true 
         end
-        if h.cat == "STEP" and h.chips > 0 then 
-            hasStep = true 
+        if h.cat == "CRESCENDO" and h.chips > 0 then 
+            hasCrescendo = true 
         end
     end
     
@@ -36,7 +36,7 @@ function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatter
     
     -- 연쇄 반응(Synergy)을 계산하기 위해 각 증강체의 발동 가능 여부를 pre-check
     local triggered = {}
-    for _, j in ipairs(ownedJokers or {}) do
+    for idx, j in ipairs(ownedJokers or {}) do
         local isTrig = false
         if j.id == "shiny_eye" and uniqueColors["White"] then
             isTrig = true
@@ -46,7 +46,7 @@ function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatter
             isTrig = true
         elseif j.id == "rainbow" and ucCount >= 4 then
             isTrig = true
-        elseif j.id == "ladder_master" and hasStep then
+        elseif j.id == "ladder_master" and hasCrescendo then
             isTrig = true
         elseif j.id == "chaos" and (not detectedPatterns or #detectedPatterns == 0) then
             isTrig = true
@@ -62,9 +62,7 @@ function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatter
             isTrig = true
         elseif j.id == "alchemy" and redCount >= 2 and yellowCount >= 2 then
             isTrig = true
-        elseif j.id == "resonance" and hasMirror and hasStep then
-            isTrig = true
-        elseif j.id == "time_accelerator" and G and (G.timeScoreSnapshot or 0) >= 4 then
+        elseif j.id == "resonance" and hasMirror and hasCrescendo then
             isTrig = true
         elseif j.id == "reroll_boost" and G and (G.discardMultBonus or 0) > 0 then
             isTrig = true
@@ -130,9 +128,6 @@ function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatter
         elseif j.id == "resonance" and triggered["resonance"] then
             trigger = true
             bonusXMult = 2.0
-        elseif j.id == "time_accelerator" and triggered["time_accelerator"] then
-            trigger = true
-            bonusMult = math.floor((G.timeScoreSnapshot or 0) / 4) * 2
         elseif j.id == "reroll_boost" and triggered["reroll_boost"] then
             trigger = true
             bonusMult = G.discardMultBonus or 0
@@ -141,7 +136,9 @@ function JokerSystem.evaluate(ownedJokers, uniqueColors, ucCount, detectedPatter
         if trigger then
             table.insert(eventsList, {
                 type = "joker",
+                id = j.id,
                 name = j.name,
+                jokerIndex = idx,
                 chips = bonusChips,
                 mult = bonusMult,
                 xmult = bonusXMult

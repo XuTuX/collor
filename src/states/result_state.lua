@@ -31,6 +31,131 @@ end
 function ResultState.update(dt)
 end
 
+local function formatJokerBonus(e)
+    if not e then return "" end
+    local parts = {}
+    if (e.chips or 0) ~= 0 then
+        table.insert(parts, (e.chips > 0 and "+" or "") .. tostring(e.chips) .. " 별")
+    end
+    if (e.mult or 0) ~= 0 then
+        table.insert(parts, (e.mult > 0 and "+" or "") .. tostring(e.mult) .. " 콤보")
+    end
+    if (e.xmult or 1) > 1 then
+        table.insert(parts, "x" .. tostring(e.xmult) .. " 배수")
+    end
+    return table.concat(parts, "  ")
+end
+
+local function getScoringStepText(e)
+    if not e then return "점수 계산 준비 중" end
+    if e.type == "card" then return "색친구 기본 점수 적용" end
+    if e.type == "diversity" then return "색 조합 보너스 적용" end
+    if e.type == "rule" then return "색 규칙 점수 적용" end
+    if e.type == "joker" then return "증강체가 점수에 개입" end
+    if e.type == "total" then return "최종 점수 계산" end
+    return "점수 계산 중"
+end
+
+local function drawMiniJokerIcon(cx, cy, accent, alpha)
+    love.graphics.setColor(accent[1] * 0.75, accent[2] * 0.75, accent[3] * 0.75, alpha)
+    love.graphics.polygon("fill", cx - 17, cy - 5, cx - 24, cy - 18, cx - 10, cy - 14)
+    love.graphics.polygon("fill", cx + 17, cy - 5, cx + 24, cy - 18, cx + 10, cy - 14)
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], alpha)
+    love.graphics.circle("fill", cx - 24, cy - 18, 3)
+    love.graphics.circle("fill", cx + 24, cy - 18, 3)
+    love.graphics.setColor(accent[1], accent[2], accent[3], alpha)
+    love.graphics.circle("fill", cx, cy, 20)
+    love.graphics.setColor(1, 1, 1, alpha * 0.9)
+    love.graphics.ellipse("fill", cx - 7, cy - 3, 3, 5)
+    love.graphics.ellipse("fill", cx + 7, cy - 3, 3, 5)
+    love.graphics.setColor(0.08, 0.08, 0.12, alpha * 0.35)
+    love.graphics.arc("line", "open", cx, cy + 7, 7, 0.25, math.pi - 0.25)
+end
+
+function ResultState.drawScoringJokers(s)
+    if not G or not G.jokers or #G.jokers == 0 then return end
+    
+    local activeIdx = s.activeJokerIndex or G.activeJokerIdx
+    local current = s.currentEvent
+    local time = love.timer.getTime()
+    local panelY = C.JY + 4
+    
+    if activeIdx then
+        local jw = (C.JW - 40) / 3
+        local jh = C.JH - 48
+        local sx = C.JX + 10
+        local sy = panelY + 38
+        local ax = sx + (activeIdx - 1) * (jw + 10) + jw / 2
+        local ay = sy + jh
+        local tx = C.LX + C.LW / 2
+        local ty = C.LY + 330
+        local pulse = 0.55 + math.sin(time * 18) * 0.25
+        
+        love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], pulse)
+        love.graphics.setLineWidth(3)
+        love.graphics.line(ax, ay, tx, ty)
+        love.graphics.circle("fill", ax, ay, 4)
+        love.graphics.circle("fill", tx, ty, 5)
+    end
+    
+    Panel.draw(C.JX, panelY, C.JW, C.JH, 12)
+    Button.txt("증강체 계산", C.JX + 16, panelY + 12, P.text, HUD.fM)
+    
+    local stepText = getScoringStepText(current)
+    local stepW = math.min(180, HUD.fS:getWidth(stepText) + 22)
+    Button.pill(C.JX + C.JW - stepW - 20, panelY + 14, stepW, 20, stepText, P.cMirr, HUD.fS)
+    
+    local jw = (C.JW - 40) / 3
+    local jh = C.JH - 48
+    local sx = C.JX + 10
+    local sy = panelY + 38
+    
+    for i = 1, 3 do
+        local x = sx + (i - 1) * (jw + 10)
+        local y = sy
+        local j = G.jokers[i]
+        local active = activeIdx == i
+        local scale = active and (1.0 + math.sin(time * 20) * 0.035) or 1.0
+        local cx = x + jw / 2
+        local cy = y + jh / 2
+        
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.scale(scale, scale)
+        love.graphics.translate(-cx, -cy)
+        
+        if j then
+            local fillAlpha = active and 0.16 or 0.05
+            love.graphics.setColor(P.cMirr[1], P.cMirr[2], P.cMirr[3], fillAlpha)
+            love.graphics.rectangle("fill", x, y, jw, jh, 6, 6)
+            love.graphics.setColor(active and P.gold or P.cMirr)
+            love.graphics.setLineWidth(active and 2.4 or 1.2)
+            love.graphics.rectangle("line", x, y, jw, jh, 6, 6)
+            drawMiniJokerIcon(cx, cy - 6, active and P.gold or P.cMirr, active and 1 or 0.55)
+            
+            love.graphics.setFont(HUD.fS)
+            Button.txtC(j.name, cx, y + jh - 20, active and P.text or P.dim, HUD.fS)
+            
+            if active and current and current.type == "joker" then
+                Button.pill(cx - 42, y - 12, 84, 20, "발동!", P.gold, HUD.fS)
+            end
+        else
+            love.graphics.setColor(P.bg[1], P.bg[2], P.bg[3], 0.45)
+            love.graphics.rectangle("fill", x, y, jw, jh, 6, 6)
+            love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.3)
+            love.graphics.setLineWidth(1)
+            love.graphics.rectangle("line", x, y, jw, jh, 6, 6)
+            Button.txtC("비어 있음", cx, cy - 7, P.dim, HUD.fS)
+        end
+        love.graphics.pop()
+    end
+    
+    if current and current.type == "joker" then
+        local msg = current.name .. "  " .. formatJokerBonus(current)
+        Button.pill(C.HCX - 160, C.JY + C.JH + 12, 320, 26, msg, P.gold, HUD.fS)
+    end
+end
+
 -- 정산 렌더링 루프
 function ResultState.draw()
     if not G then return end
@@ -89,6 +214,8 @@ function ResultState.drawScoring()
         end
         return
     end
+
+    ResultState.drawScoringJokers(s)
 
     local lw, lh = 320, 38
     local startY = 390
@@ -320,12 +447,12 @@ local function proceedNext()
         end
         
         G.phase = "shop"
-        local shop = require("systems.joker_system")
         local shopState = require("states.settings_state")
         shopState.enterShop(G) -- 상점 품목 생성
         G.stateMachine:change("shop", G)
         Audio.play("clear")
         G.notice("+$" .. totalGold .. " 획득 (기본+바꾸기+저금)", "ok")
+        if G.saveProgress then G.saveProgress() end
     elseif G.execLeft > 0 then
         -- 아직 기회가 남음: 패 드로우 후 play 상태 복귀
         G.phase = "play"
@@ -340,8 +467,9 @@ local function proceedNext()
     else
         -- 횟수 초과: 게임오버
         G.phase = "gameover"
-        G.stateMachine:change("play", G) -- 게임오버 오버레이는 gameplay_state에서 그립니다.
+        G.stateMachine:change("gameover", G) -- 게임오버 오버레이는 gameplay_state에서 그립니다.
         Audio.play("gameover")
+        if G.saveProgress then G.saveProgress() end
     end
 end
 

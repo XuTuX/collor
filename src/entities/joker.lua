@@ -67,7 +67,7 @@ function Joker.drawIcon(item, cx, cy, accent)
         love.graphics.setLineWidth(5)
         love.graphics.line(cx + 23, cy - 11, cx + 23, cy + 15)
         love.graphics.line(cx + 10, cy + 2, cx + 36, cy + 2)
-    elseif item.type == "deck_remove" then
+    elseif item.type == "deck_remove" or item.type == "deck_remove_color" then
         love.graphics.setColor(0.24, 0.30, 0.42, 0.18)
         rr("fill", cx - 26, cy - 18, 44, 52, 7)
         love.graphics.setColor(1, 1, 1, 0.92)
@@ -77,6 +77,20 @@ function Joker.drawIcon(item, cx, cy, accent)
         love.graphics.setColor(P.btnR)
         love.graphics.setLineWidth(5)
         love.graphics.line(cx + 9, cy + 2, cx + 35, cy + 2)
+    elseif item.type == "deck_transform" then
+        local col = item.toColorVal or accent
+        love.graphics.setColor(0.24, 0.30, 0.42, 0.18)
+        rr("fill", cx - 32, cy - 20, 42, 54, 7)
+        love.graphics.setColor(1, 1, 1, 0.92)
+        rr("fill", cx - 36, cy - 25, 42, 54, 7)
+        love.graphics.setColor(P.dim[1], P.dim[2], P.dim[3], 0.45)
+        love.graphics.circle("fill", cx - 16, cy + 2, 14)
+        love.graphics.setColor(col)
+        love.graphics.circle("fill", cx + 18, cy + 2, 14)
+        love.graphics.setColor(accent)
+        love.graphics.setLineWidth(4)
+        love.graphics.line(cx - 1, cy + 2, cx + 8, cy + 2)
+        love.graphics.polygon("fill", cx + 8, cy + 2, cx + 1, cy - 5, cx + 1, cy + 9)
     end
 end
 

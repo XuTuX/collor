@@ -105,7 +105,7 @@ end
 function Tile.handIndexFromX(handList, mouseX)
     local n = #handList
     if n <= 1 then return 1 end
-    local firstX = C.HCX - ((n - 1) / 2) * C.HSPC
+    local firstX = C.HCX_HAND - ((n - 1) / 2) * C.HSPC
     local idx = math.floor((mouseX - firstX + C.HSPC / 2) / C.HSPC) + 1
     return math.max(1, math.min(n, idx))
 end

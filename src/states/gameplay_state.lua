@@ -38,19 +38,31 @@ end
 function GameplayState.draw()
     if not G then return end
 
-    -- 1. 현대적인 보드게임 격자 무늬 배경
+    -- 1. 네오 브루탈리즘 격자 무늬 배경
     love.graphics.setColor(P.bg)
     love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
     
-    -- 미세 가로세로 그리드 라인
-    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.22)
+    local gridSize = 40
+    
+    -- 미세 가로세로 그리드 라인 (Charcoal Black 3.5% 투명도)
+    love.graphics.setColor(0.102, 0.102, 0.102, 0.035)
     love.graphics.setLineWidth(1)
-    for x = 0, C.SW, 60 do
+    for x = 0, C.SW, gridSize do
         love.graphics.line(x, 0, x, C.SH)
     end
-    for y = 0, C.SH, 60 do
+    for y = 0, C.SH, gridSize do
         love.graphics.line(0, y, C.SW, y)
     end
+    
+    -- 레트로 감성 파스텔 블록 포인트
+    love.graphics.setColor(0.976, 0.847, 0.427, 0.08) -- 파스텔 옐로우 8%
+    love.graphics.rectangle("fill", gridSize * 2 + 4, gridSize * 3 + 4, 32, 32, 8, 8)
+    
+    love.graphics.setColor(0.063, 0.725, 0.506, 0.05) -- 파스텔 그린 5%
+    love.graphics.rectangle("fill", gridSize * 12 + 4, gridSize * 8 + 4, 32, 32, 8, 8)
+    
+    love.graphics.setColor(0.000, 0.584, 1.000, 0.05) -- 파스텔 블루 5%
+    love.graphics.rectangle("fill", gridSize * 20 + 4, gridSize * 2 + 4, 32, 32, 8, 8)
 
     -- 2. 게임 득점 흔들림 연출 적용
     love.graphics.push()
@@ -91,10 +103,10 @@ function GameplayState.drawHand()
 
     if n == 0 then return end
     
-    -- 카드는 패널의 왼쪽에 정렬 (X: C.HX + 20 부터 카드 간격 HSPC 적용)
+    local mid = (n + 1) / 2
     local order = {}
     for i = 1, n do
-        local bx = G.hand[i].visX or (C.HX + 60 + (i-1) * C.HSPC)
+        local bx = G.hand[i].visX or (C.HCX_HAND + (i - mid) * C.HSPC)
         local by = C.HY_HAND
         local sel = G.hand[i].sel
         local hov = (G.hCard == i)
@@ -104,20 +116,25 @@ function GameplayState.drawHand()
         
         local rx, ry = bx, by + dy
         local bob = math.sin(time*2.0 + i*0.7) * 1.5
-        local sc = 1.0
+        local sc = G.hand[i].hovScale or 1.0
+        local tilt = G.hand[i].hovTilt or 0.0
         
         if G.dragIndex == i then
             rx = G.dragX
             ry = G.dragY
             bob = 0
             sc = 1.15
+            tilt = 0.0
         else
             local age = time - (G.hand[i].spawnT or 0)
-            if age < 0.25 then sc = MathUtils.easeBack(age/0.25) end
+            if age < 0.25 then 
+                local birthSc = MathUtils.easeBack(age/0.25)
+                sc = sc * birthSc
+            end
         end
         
         table.insert(order, {
-            i=i, x=rx, y=ry, bob=bob, sc=sc, hov=hov, sel=sel, card=G.hand[i],
+            i=i, x=rx, y=ry, bob=bob, sc=sc, tilt=tilt, hov=hov, sel=sel, card=G.hand[i],
             pri=(G.dragIndex == i and 5 or (sel and 1 or 0)+(hov and 2 or 0))
         })
     end
@@ -127,6 +144,9 @@ function GameplayState.drawHand()
         love.graphics.push()
         love.graphics.translate(o.x, o.y)
         love.graphics.scale(o.sc, o.sc)
+        if o.tilt and o.tilt ~= 0 then
+            love.graphics.rotate(o.tilt)
+        end
         love.graphics.translate(-o.x, -o.y)
         CharacterEntity.draw(o.x, o.y, C.HCR, o.card, { selected = o.sel, bob = o.bob })
         
@@ -244,14 +264,8 @@ function GameplayState.drawJokers()
             -- 호버 시 툴팁(상세 설명) 렌더링
             if mx >= cx and mx <= cx + jw and my >= cy and my <= cy + jh then
                 local desc = j.desc
-                if j.id == "time_accelerator" then
-                    local currentBonus = math.floor((G.timeScoreTimer or 0) / 4) * 2
-                    desc = "4초 마다 배수 +2\n(현재 배수: +" .. currentBonus .. ")\n실행 시 리셋"
-                elseif j.id == "reroll_boost" then
+                if j.id == "reroll_boost" then
                     desc = "바꾸기 시 40% 확률로\n이번 라운드 배수 +3 추가\n(현재 배수: +" .. (G.discardMultBonus or 0) .. ")"
-                elseif j.id == "time_fever" then
-                    local currentProgress = math.floor(G.timeFeverTimer or 0)
-                    desc = "6초 마다 보유 코인 +$1\n(현재 축적: " .. currentProgress .. "초/6초)"
                 end
                 
                 -- 화면 중앙 상단 또는 알맞은 마우스 근처에 상세 툴팁 출력
@@ -474,4 +488,3 @@ function GameplayState.drawBanner()
 end
 
 return GameplayState
-

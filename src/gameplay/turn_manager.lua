@@ -104,10 +104,6 @@ function TurnManager.executeHand(G)
     G.execLeft = G.execLeft - 1
     G.phase = "executing"
     
-    -- 실시간 시간 증강체 타이머 리셋
-    G.timeScoreSnapshot = G.timeScoreTimer or 0
-    G.timeScoreTimer = 0
-    
     -- 남아있는 패 카드들의 선택 상태 초기화
     for _, c in ipairs(G.hand) do
         c.sel = false

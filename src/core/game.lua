@@ -14,6 +14,7 @@ local Effect = require("systems.effect_system")
 local Anim = require("systems.animation_system")
 local ScoreSys = require("systems.score_system")
 local Tile = require("gameplay.tile")
+local SaveManager = require("core.save_manager")
 
 -- ── 전역 데이터 상태 초기 정의 ──
 Game.board       = {}
@@ -45,7 +46,8 @@ Game.stage       = 1
 Game.bossGimmick = "none"   -- none | no_red | no_black | no_discard | high_target
 Game.gold        = 4
 Game.jokers      = {}       -- 보유 조커(증강체) 목록
-Game.shopItems   = {}       -- 상점 판매 아이템 목록
+Game.shopItems    = {}      -- 상점 판매 아이템/반짝임 목록
+Game.shopAugments = {}      -- 상점 판매 증강체 목록
 Game.deckConfig  = {}       -- 영구 덱 구성
 
 -- 알림 토스트 연출용
@@ -76,7 +78,7 @@ function Game.init()
         play     = require("states.gameplay_state"),
         result   = require("states.result_state"),
         shop     = require("states.settings_state"), -- 상점 상태를 settings_state에 맵핑
-        gameover = require("states.gameplay_state")  -- 게임오버 키 처리는 gameplay_state와 유사하게 구성 가능하나, 개별 위임
+        gameover = require("states.gameplay_state")
     })
 end
 
@@ -85,6 +87,42 @@ function Game.notice(text, kind)
     Game.noticeText = text or ""
     Game.noticeKind = kind or "info"
     Game.noticeTimer = 1.8
+end
+
+local function getCharacterColor(name)
+    for _, c in ipairs(CharactersData) do
+        if c.name == name then
+            return {c.color[1], c.color[2], c.color[3]}
+        end
+    end
+    return nil
+end
+
+local function removeDeckCardByColor(deckConfig, colorName)
+    local matches = {}
+    for i, card in ipairs(deckConfig) do
+        if not colorName or card.name == colorName then
+            table.insert(matches, i)
+        end
+    end
+    if #matches == 0 then
+        return false
+    end
+    local idx = matches[love.math.random(1, #matches)]
+    table.remove(deckConfig, idx)
+    return true
+end
+
+function Game.saveProgress()
+    SaveManager.save({
+        ante = Game.ante,
+        stage = Game.stage,
+        gold = Game.gold,
+        bossGimmick = Game.bossGimmick,
+        jokers = Game.jokers,
+        deckConfig = Game.deckConfig,
+        handStats = Game.handStats
+    })
 end
 
 -- 게임판 족보 집계 및 점수 계산 시퀀스 개시
@@ -100,9 +138,7 @@ function Game.scoreBoard()
     Game.stateMachine:change("result", Game)
 end
 
--- 상점 아이템 구매 처리 (원래 game.lua 이식)
-function Game.buyItem(idx)
-    local item = Game.shopItems[idx]
+local function buyShopEntry(item)
     if not item or item.sold then
         Game.notice("이미 가져간 물건이에요", "warn")
         return false, "이미 판매되었습니다"
@@ -130,11 +166,40 @@ function Game.buyItem(idx)
         table.insert(Game.deckConfig, {name=item.colorName, color=item.colorVal})
     elseif item.type == "deck_remove" then
         if #Game.deckConfig > 7 then
-            table.remove(Game.deckConfig, love.math.random(1, #Game.deckConfig))
+            removeDeckCardByColor(Game.deckConfig)
         else
             Game.notice("주머니가 너무 작아요", "warn")
             return false, "주머니에 색친구가 너무 적습니다"
         end
+    elseif item.type == "deck_remove_color" then
+        if #Game.deckConfig <= 7 then
+            Game.notice("주머니가 너무 작아요", "warn")
+            return false, "주머니에 색친구가 너무 적습니다"
+        end
+        if not removeDeckCardByColor(Game.deckConfig, item.colorName) then
+            Game.notice("삭제할 색친구가 없어요", "warn")
+            return false, "삭제할 색친구가 없습니다"
+        end
+    elseif item.type == "deck_transform" then
+        local matches = {}
+        for i, card in ipairs(Game.deckConfig) do
+            if card.name == item.fromColor then
+                table.insert(matches, i)
+            end
+        end
+        if #matches == 0 then
+            Game.notice("바꿀 색친구가 없어요", "warn")
+            return false, "변환할 색친구가 없습니다"
+        end
+        local idx = matches[love.math.random(1, #matches)]
+        local newColor = item.toColorVal or getCharacterColor(item.toColor)
+        Game.deckConfig[idx] = {
+            name = item.toColor,
+            color = newColor or Game.deckConfig[idx].color
+        }
+    else
+        Game.notice("알 수 없는 물건이에요", "warn")
+        return false, "알 수 없는 아이템 타입입니다"
     end
     
     Game.gold = Game.gold - item.price
@@ -142,7 +207,18 @@ function Game.buyItem(idx)
     Audio.play("clear")
     Game.shake = Game.shake + 4
     Game.notice("가져왔어요", "ok")
+    Game.saveProgress()
     return true
+end
+
+-- 상점 아이템/반짝임 구매 처리
+function Game.buyItem(idx)
+    return buyShopEntry(Game.shopItems[idx])
+end
+
+-- 상점 증강체 구매 처리
+function Game.buyAugment(idx)
+    return buyShopEntry(Game.shopAugments[idx])
 end
 
 -- 게임 모험 전체 리셋
@@ -150,6 +226,7 @@ function Game.reset()
     Game.score = 0
     Game.totalScore = 0
     Game.dScore = 0
+    Game.scoreScale = 1.0
     Game.round = 1
     Game.ante = 1
     Game.stage = 1
@@ -210,6 +287,7 @@ function Game.update(dt)
     -- 2.5 칩 및 배수 득점판 UI 스케일 바운스 수렴
     Game.chipScale = Tween.smoothTo(Game.chipScale or 1.0, 1.0, 10, dt)
     Game.multScale = Tween.smoothTo(Game.multScale or 1.0, 1.0, 10, dt)
+    Game.scoreScale = Tween.smoothTo(Game.scoreScale or 1.0, 1.0, 10, dt)
     
     -- 3. 파티클 수명 업데이트
     Effect.update(dt)
@@ -217,37 +295,6 @@ function Game.update(dt)
     -- 4. 토스트 알림 연출 타이머 갱신
     if Game.noticeTimer > 0 then
         Game.noticeTimer = math.max(0, Game.noticeTimer - dt)
-    end
-
-    -- 4.5 실시간 시간 증강체 타이머 업데이트
-    if Game.phase == "play" then
-        local hasTimeAugment = false
-        local hasTimeFever = false
-        for _, j in ipairs(Game.jokers or {}) do
-            if j.id == "time_accelerator" then
-                hasTimeAugment = true
-            elseif j.id == "time_fever" then
-                hasTimeFever = true
-            end
-        end
-        
-        if hasTimeAugment then
-            Game.timeScoreTimer = (Game.timeScoreTimer or 0) + dt
-        else
-            Game.timeScoreTimer = 0
-        end
-        
-        if hasTimeFever then
-            Game.timeFeverTimer = (Game.timeFeverTimer or 0) + dt
-            if Game.timeFeverTimer >= 6.0 then
-                Game.timeFeverTimer = Game.timeFeverTimer - 6.0
-                Game.gold = Game.gold + 1
-                Game.notice("시간 피버! 코인 +$1", "ok")
-                Audio.play("reveal")
-            end
-        else
-            Game.timeFeverTimer = 0
-        end
     end
 
     -- 5. 부드러운 점수 보간 수렴 계산 (utils/tween 적용)
@@ -266,6 +313,7 @@ function Game.update(dt)
         Game.roundCleared = true
         Audio.play("clear")
         Game.shake = Game.shake + 12
+        Game.scoreScale = 1.4
         
         -- 리뉴얼된 좌측 정보 패널 점수 위치 부근에서 금빛 파티클 튀기기
         local sx = C.LX + 100
@@ -304,14 +352,32 @@ function Game.update(dt)
                         slot = rIdx + 1
                     end
                 end
-                targetX = C.HCX + (slot - mid) * C.HSPC
+                targetX = C.HCX_HAND + (slot - mid) * C.HSPC
             end
 
             if not card.visX then
-                card.visX = C.HCX + (i - mid) * C.HSPC
+                card.visX = C.HCX_HAND + (i - mid) * C.HSPC
             end
-            
+
             card.visX = Tween.smoothTo(card.visX, targetX, 18, dt)
+
+            -- 마우스 호버 스케일 및 쫀득한 틸트 웝블 보간
+            local isHovered = (Game.hCard == i)
+            local targetScale = 1.0
+            local targetTilt = 0.0
+
+            if isHovered then
+                targetScale = 1.12
+                -- 시간과 인덱스 위상차를 주어 각각 생동감 있게 흔들리도록 구성
+                local time = love.timer.getTime()
+                targetTilt = math.sin(time * 9.5 + i * 1.7) * 0.06
+            end
+
+            card.hovScale = card.hovScale or 1.0
+            card.hovScale = Tween.smoothTo(card.hovScale, targetScale, 15, dt)
+
+            card.hovTilt = card.hovTilt or 0.0
+            card.hovTilt = Tween.smoothTo(card.hovTilt, targetTilt, 15, dt)
         end
     end
     

@@ -96,7 +96,7 @@ function CardSlot.drawBoard(G, board, slotAnimState, scState)
                     pillCol = P.gold
                 end
                 
-                local valStr = "+" .. tostring(base)
+                local valStr = (base >= 0 and "+" or "") .. tostring(base)
                 local valW = fS:getWidth(valStr) + 8
                 local valH = 15
                 

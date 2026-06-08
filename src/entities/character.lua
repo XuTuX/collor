@@ -144,4 +144,3 @@ function Character.draw(x, y, rad, blk, opts)
 end
 
 return Character
-

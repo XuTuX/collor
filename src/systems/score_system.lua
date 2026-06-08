@@ -23,6 +23,9 @@ local sc = {
     revealed = {},
     hopIdx = {},
     events = {},
+    currentEvent = nil,
+    activeJokerIndex = nil,
+    activeJokerTimer = 0,
     prevDChips = 0,
     prevDMult = 0
 }
@@ -40,6 +43,9 @@ function ScoreSystem.clear()
     sc.revealed = {}
     sc.hopIdx = {}
     sc.events = {}
+    sc.currentEvent = nil
+    sc.activeJokerIndex = nil
+    sc.activeJokerTimer = 0
     sc.prevDChips = 0
     sc.prevDMult = 0
 end
@@ -62,6 +68,9 @@ function ScoreSystem.start(board, detectedPatterns, jokers, G)
     sc.prevDMult = 0
     sc.revealed = {}
     sc.events = {}
+    sc.currentEvent = nil
+    sc.activeJokerIndex = nil
+    sc.activeJokerTimer = 0
     sc.hopIdx = {}
 
     -- 1. 다채로움 보너스 (Diversity Check)
@@ -137,6 +146,13 @@ end
 function ScoreSystem.update(dt, G)
     if not sc.active then return end
     sc.timer = sc.timer + dt
+    if sc.activeJokerTimer > 0 then
+        sc.activeJokerTimer = math.max(0, sc.activeJokerTimer - dt)
+        if sc.activeJokerTimer == 0 then
+            sc.activeJokerIndex = nil
+            if G then G.activeJokerIdx = nil end
+        end
+    end
 
     if sc.phase == "nohand" then
         if sc.timer > 1.8 then
@@ -155,6 +171,7 @@ function ScoreSystem.update(dt, G)
             
             if sc.idx <= #sc.events then
                 local e = sc.events[sc.idx]
+                sc.currentEvent = e
                 
                 if e.type == "card" then
                     sc.tChips = sc.tChips + e.chips
@@ -173,16 +190,17 @@ function ScoreSystem.update(dt, G)
                     local sx = C.BX + (e.idx-1)*(C.BSW+C.BGAP) + C.BSW/2
                     local sy = C.BY - 10
                     
-                    local msg = "+" .. e.chips
+                    local prefix = e.chips >= 0 and "+" or ""
+                    local msg = prefix .. e.chips
                     local col = C.P.chip
                     if e.edition == "foil" then
-                        msg = "+" .. e.chips .. " (포일!)"
+                        msg = prefix .. e.chips .. " (포일!)"
                         col = C.P.cMirr
                     elseif e.edition == "holo" then
-                        msg = "+" .. e.chips .. "  x" .. e.mult .. " (홀로!)"
+                        msg = prefix .. e.chips .. "  x" .. e.mult .. " (홀로!)"
                         col = C.P.mult
                     elseif e.edition == "gold" then
-                        msg = "+" .. e.chips .. " (황금!)"
+                        msg = prefix .. e.chips .. " (황금!)"
                         col = C.P.gold
                     end
                     Effect.spawnTextParticle(sx, sy, msg, col)
@@ -221,10 +239,13 @@ function ScoreSystem.update(dt, G)
                     Effect.spawnTextParticle(C.HCX, C.BY - 50, "+" .. e.rule.chips .. "  x" .. e.rule.mult, C.P.mult)
                     
                 elseif e.type == "joker" then
+                    sc.activeJokerIndex = e.jokerIndex
+                    sc.activeJokerTimer = 0.72
                     sc.tChips = sc.tChips + e.chips
                     sc.tMult = sc.tMult + e.mult
                     sc.tMult = sc.tMult * e.xmult
                     if G then
+                        G.activeJokerIdx = e.jokerIndex
                         if e.chips > 0 then G.chipScale = 1.35 end
                         if e.mult > 0 or e.xmult > 1 then G.multScale = 1.35 end
                     end
@@ -234,15 +255,18 @@ function ScoreSystem.update(dt, G)
                     
                     local msg = ""
                     if e.chips > 0 then msg = msg .. "+" .. e.chips .. " " end
-                    if e.mult > 0 then msg = msg .. "x" .. e.mult .. " " end
-                    if e.xmult > 1 then msg = msg .. "x" .. e.xmult end
+                    if e.mult > 0 then msg = msg .. "+" .. e.mult .. "콤보 " end
+                    if e.xmult > 1 then msg = msg .. "x" .. e.xmult .. "배수" end
                     Effect.spawnTextParticle(C.HCX, C.BY - 60, msg, C.P.gold)
                     
                 elseif e.type == "total" then
-                    G.rndScore = math.floor(sc.tChips * sc.tMult)
+                    G.rndScore = math.max(0, math.floor(sc.tChips * sc.tMult))
                     sc.phase = "total"
                     sc.timer = 0
+                    sc.activeJokerIndex = nil
+                    sc.activeJokerTimer = 0
                     if G then 
+                        G.activeJokerIdx = nil
                         G.executingCardIdx = -1 
                         G.chipScale = 1.45
                         G.multScale = 1.45
@@ -267,9 +291,11 @@ function ScoreSystem.update(dt, G)
             Audio.play("tick")
             sc.prevDChips = math.floor(sc.dTotal)
             G.shake = G.shake + 0.5 -- 롤링 카운팅 중 흔들림
+            if G then
+                G.scoreScale = 1.15
+            end
         end
     end
 end
 
 return ScoreSystem
-

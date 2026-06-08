@@ -9,8 +9,25 @@ function RuleEngine.applyStatsAndGimmicks(detectedPatterns, handStats, stage, bo
         -- 1. 규칙 강화 레벨 스탯 투영
         local stats = handStats[h.name]
         if stats then
-            h.chips = stats.chips
-            h.mult = stats.mult
+            -- 배율 스케일링 인자 S 계산
+            local S = 1
+            local power = 1.5
+            
+            if h.cat == "MONO" or h.cat == "MIRROR" or h.cat == "ZIGZAG" then
+                S = math.max(1, h.length - 2)
+                power = 1.5
+            elseif h.cat == "CRESCENDO" then
+                S = math.max(1, h.length - 2)
+                power = 1.8 -- 등급 스트레이트 난이도 가중치 반영
+            elseif h.cat == "TWINS" then
+                S = math.max(1, h.pairs)
+                power = 1.5
+            end
+            
+            -- 비선형(power승) 스케일링 계산
+            local scaleMultiplier = S ^ power
+            h.chips = math.floor(stats.chips * scaleMultiplier)
+            h.mult = math.floor(stats.mult * scaleMultiplier)
         end
         
         -- 2. 보스 기믹 적용 (Ante Stage 3 에서만 발동)

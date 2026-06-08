@@ -23,49 +23,50 @@ function Button.txtC(s, cx, y, col, font)
     Button.txt(s, cx - w / 2, y, col)
 end
 
--- 버튼 그리기 (모던 미니멀 스타일)
+-- 네오 브루탈리즘 버튼 그리기
 function Button.draw(x, y, w, h, label, active, hover, font)
     local hud = require("ui.hud")
     font = font or hud.fM
     if not font then return end
     
-    -- 1. 부드러운 미세 그림자
-    love.graphics.setColor(0.08, 0.12, 0.22, 0.08)
-    rr("fill", x, y + 3, w, h, 8)
+    local r = 20 -- 네오 브루탈리즘 둥근 모서리
+    
+    -- 1. 네오 브루탈리즘 하드 섀도우 (클릭/호버 시 위치 변화 처리 가능, 현재는 고정 오프셋)
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    local dx, dy = 3, 3
+    if hover and active then dx, dy = 1, 1 end -- 눌리는 느낌을 위해 그림자 축소
+    rr("fill", x + dx, y + dy, w, h, r)
+    
+    -- 눌리는 느낌(호버) 시 몸체 위치 이동
+    local bx, by = x, y
+    if hover and active then
+        bx, by = x + 2, y + 2
+    end
     
     -- 2. 버튼 몸체
     if active then
-        love.graphics.setColor(hover and P.btnRH or P.btnR)
+        love.graphics.setColor(P.btnR) -- 네오 브루탈리즘은 호버 시에도 원색 유지
     else
         love.graphics.setColor(P.btnG)
     end
-    rr("fill", x, y, w, h, 8)
+    rr("fill", bx, by, w, h, r)
     
-    -- 3. 미세 하이라이트
-    love.graphics.setColor(1, 1, 1, active and 0.15 or 0.05)
-    rr("fill", x, y, w, h * 0.25, 8)
+    -- 3. 굵고 뚜렷한 테두리
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.setLineWidth(2.0)
+    rr("line", bx, by, w, h, r)
     
-    -- 4. 얇은 테두리
-    if hover and active then
-        love.graphics.setColor(1, 1, 1, 0.6)
-        love.graphics.setLineWidth(1.8)
-    else
-        love.graphics.setColor(0, 0, 0, 0.06)
-        love.graphics.setLineWidth(1)
-    end
-    rr("line", x, y, w, h, 8)
-    
-    -- 5. 버튼 텍스트
+    -- 4. 버튼 텍스트
     love.graphics.setFont(font)
     if not active then
         love.graphics.setColor(0.45, 0.49, 0.55)
     else
         love.graphics.setColor(P.white)
     end
-    love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
+    love.graphics.print(label, bx + (w - font:getWidth(label)) / 2, by + (h - font:getHeight()) / 2)
 end
 
--- 알약 배지(Pill) 그리기
+-- 네오 브루탈리즘 알약 배지(Pill) 그리기
 function Button.pill(x, y, w, h, label, col, font)
     local hud = require("ui.hud")
     font = font or hud.fS
@@ -73,20 +74,20 @@ function Button.pill(x, y, w, h, label, col, font)
     
     local r = math.floor(h / 2)
     
-    -- 1. 미세 그림자
-    love.graphics.setColor(0, 0, 0, 0.05)
-    rr("fill", x, y + 2, w, h, r)
+    -- 1. 하드 섀도우
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    rr("fill", x + 2, y + 2, w, h, r)
     
     -- 2. 몸체 판
     love.graphics.setColor(col[1], col[2], col[3], 1.0)
     rr("fill", x, y, w, h, r)
     
-    -- 3. 얇은 테두리선
-    love.graphics.setColor(1, 1, 1, 0.15)
-    love.graphics.setLineWidth(1)
+    -- 3. 굵은 테두리선
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.setLineWidth(2.0)
     rr("line", x, y, w, h, r)
     
-    -- 4. 내부 텍스트 (텍스트 가독성을 위해 어두운 계열 색상이면 하양, 밝은 계열이면 알맞게 조정하지만 기본 화이트 유지)
+    -- 4. 내부 텍스트
     love.graphics.setColor(P.white)
     love.graphics.setFont(font)
     love.graphics.print(label, x + (w - font:getWidth(label)) / 2, y + (h - font:getHeight()) / 2)
@@ -94,11 +95,11 @@ end
 
 -- 카테고리별 색상 매핑 헬퍼
 function Button.catCol(c)
-    if c == "MONO"   then return P.cMono end
-    if c == "MIRROR" then return P.cMirr end
-    if c == "STEP"   then return P.cStep end
-    if c == "TWINS"  then return P.cTwins end
-    if c == "ZIGZAG" then return P.cZigzag end
+    if c == "MONO"      then return P.cMono end
+    if c == "MIRROR"    then return P.cMirr end
+    if c == "CRESCENDO" then return P.cStep end
+    if c == "TWINS"     then return P.cTwins end
+    if c == "ZIGZAG"    then return P.cZigzag end
     return P.text
 end
 

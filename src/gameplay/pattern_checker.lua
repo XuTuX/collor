@@ -5,6 +5,15 @@ local PatternChecker = {}
 local C = require("core.constants")
 local CharactersData = require("data.characters")
 
+-- 색상 등급 정의 (크레센도 판정용)
+local rankMap = {
+    Red = 1,
+    Orange = 2,
+    Yellow = 3,
+    White = 4,
+    Black = 5
+}
+
 -- 보드에 놓인 카드 개수 반환
 local function boardLen(boardTable)
     local n = 0
@@ -45,28 +54,23 @@ function PatternChecker.getRuns(boardTable)
     return runs
 end
 
--- MONO: 같은 색 연속 3개 이상 검출 (덩어리 중 가장 긴 구간 1개만 적용)
+-- MONO: 같은 색 연속 3개 이상 검출 (모든 검출 덩어리 반환)
 function PatternChecker.checkMono(boardTable)
     local results = {}
     for _, r in ipairs(PatternChecker.getRuns(boardTable)) do
-        local patternStr = string.rep(getShortName(r.color), r.length)
-        local indices = {}
-        for i = r.start, r.start + r.length - 1 do 
-            table.insert(indices, i) 
-        end
-        
-        if r.length >= 5 then 
-            table.insert(results, {cat="MONO", name="Tower", chips=150, mult=12, pat=patternStr, idx=indices})
-        elseif r.length == 4 then 
-            table.insert(results, {cat="MONO", name="Half Mono", chips=60, mult=5, pat=patternStr, idx=indices})
-        elseif r.length == 3 then 
-            table.insert(results, {cat="MONO", name="Mini Mono", chips=30, mult=3, pat=patternStr, idx=indices})
+        if r.length >= 3 then
+            local patternStr = string.rep(getShortName(r.color), r.length)
+            local indices = {}
+            for i = r.start, r.start + r.length - 1 do 
+                table.insert(indices, i) 
+            end
+            table.insert(results, {cat="MONO", name="Mono", length=r.length, pat=patternStr, idx=indices})
         end
     end
     return results
 end
 
--- MIRROR: 좌우 대칭 + 2색 이상인 경우 검출
+-- MIRROR: 좌우 대칭인 패턴 검출 (최장 길이 1개만 반환)
 function PatternChecker.checkMirror(boardTable)
     local results = {}
     local n = boardLen(boardTable)
@@ -85,7 +89,7 @@ function PatternChecker.checkMirror(boardTable)
             end
         end
         
-        -- 사용된 고유 색상이 2종류 이상이어야 함
+        -- 사용된 고유 색상이 2종류 이상이어야 함 (모노와의 중복 방지)
         local colorMap = {}
         local colorCount = 0
         for i = si, ei do
@@ -114,17 +118,11 @@ function PatternChecker.checkMirror(boardTable)
         return indices
     end
     
-    -- 큰 거울(7개 전체) 대칭 체크
-    if checkSymmetry(1, 7) then
-        table.insert(results, {cat="MIRROR", name="Grand Mirror", chips=400, mult=40, pat=makePatternString(1, 7), idx=getIndices(1, 7)})
-        return results
-    end
-    
-    -- 작은 거울 (5~6개 대칭 체크)
-    for length = math.min(6, n), 5, -1 do
+    -- 가장 긴 대칭부터 3개까지 역순 탐색
+    for length = n, 3, -1 do
         for start = 1, n - length + 1 do
             if checkSymmetry(start, length) then
-                table.insert(results, {cat="MIRROR", name="Half Mirror", chips=100, mult=8, pat=makePatternString(start, length), idx=getIndices(start, length)})
+                table.insert(results, {cat="MIRROR", name="Mirror", length=length, pat=makePatternString(start, length), idx=getIndices(start, length)})
                 return results
             end
         end
@@ -133,94 +131,62 @@ function PatternChecker.checkMirror(boardTable)
     return results
 end
 
--- STEP: 연속된 덩어리들의 길이 계단형 패턴 검출
-function PatternChecker.checkStep(boardTable)
+-- TWINS: 인접 동일 색쌍 검출 (비중복 쌍 개수 카운트)
+function PatternChecker.checkTwins(boardTable)
     local results = {}
-    local runs = PatternChecker.getRuns(boardTable)
     local n = boardLen(boardTable)
-    local lengths = {}
+    if n < 2 then return results end
     
-    for _, r in ipairs(runs) do 
-        table.insert(lengths, r.length) 
-    end
+    local pairsCount = 0
+    local idx = {}
+    local pat = ""
+    local i = 1
     
-    local function getFullPatternString()
-        local p = ""
-        for i = 1, n do 
-            p = p .. getShortName(boardTable[i].name) 
-        end
-        return p
-    end
-    
-    local function getAllIndices()
-        local indices = {}
-        for i = 1, n do 
-            table.insert(indices, i) 
-        end
-        return indices
-    end
-    
-    -- Perfect Ladder (1-2-3-1 혹은 1-3-2-1 형태)
-    if #lengths == 4 then
-        local a, b, c, d = lengths[1], lengths[2], lengths[3], lengths[4]
-        if (a == 1 and b == 2 and c == 3 and d == 1) or
-           (a == 1 and b == 3 and c == 2 and d == 1) then
-            table.insert(results, {cat="STEP", name="Perfect Ladder", chips=300, mult=25, pat=getFullPatternString(), idx=getAllIndices()})
-            return results
+    while i < n do
+        if boardTable[i] and boardTable[i+1] and boardTable[i].name == boardTable[i+1].name then
+            pairsCount = pairsCount + 1
+            table.insert(idx, i)
+            table.insert(idx, i+1)
+            pat = pat .. getShortName(boardTable[i].name) .. getShortName(boardTable[i+1].name)
+            i = i + 2 -- 겹치지 않게 건너뜀
+        else
+            i = i + 1
         end
     end
     
-    -- Half Step (1-2-3 혹은 3-2-1 형태)
-    for i = 1, #lengths - 2 do
-        local a, b, c = lengths[i], lengths[i + 1], lengths[i + 2]
-        if (a == 1 and b == 2 and c == 3) or (a == 3 and b == 2 and c == 1) then
-            local startPos = 0
-            for j = 1, i - 1 do 
-                startPos = startPos + lengths[j] 
-            end
-            
-            local patternStr = ""
-            local indices = {}
-            for j = startPos + 1, startPos + a + b + c do
-                patternStr = patternStr .. getShortName(boardTable[j].name)
-                table.insert(indices, j)
-            end
-            
-            table.insert(results, {cat="STEP", name="Half Step", chips=120, mult=10, pat=patternStr, idx=indices})
-            return results
-        end
+    if pairsCount >= 1 then
+        table.insert(results, {cat="TWINS", name="Twins", pairs=pairsCount, pat=pat, idx=idx})
     end
     
     return results
 end
 
--- TWINS: 인접한 카드들이 같은 색 쌍을 이루는 경우 검출
-function PatternChecker.checkTwins(boardTable)
+-- CRESCENDO: 색상 등급이 순차적으로 상승하거나 하강하는 스트레이트 패턴 (최장 길이 1개만 반환)
+function PatternChecker.checkCrescendo(boardTable)
     local results = {}
     local n = boardLen(boardTable)
+    if n < 3 then return results end
     
-    local function checkTwinsSymmetry(si, length)
+    local function checkSeq(si, length)
         local ei = si + length - 1
         if ei > n then return false end
-        for i = si, ei do 
-            if not boardTable[i] then return false end 
+        for i = si, ei do
+            if not boardTable[i] then return false end
         end
         
-        local uniqueColors = {}
-        local colorCount = 0
-        for j = 0, length/2 - 1 do
-            local idx1 = si + j * 2
-            local idx2 = si + j * 2 + 1
-            if boardTable[idx1].name ~= boardTable[idx2].name then
-                return false
-            end
-            local col = boardTable[idx1].name
-            if not uniqueColors[col] then
-                uniqueColors[col] = true
-                colorCount = colorCount + 1
-            end
+        local isIncreasing = true
+        local isDecreasing = true
+        
+        for i = si, ei - 1 do
+            local r1 = rankMap[boardTable[i].name]
+            local r2 = rankMap[boardTable[i+1].name]
+            if not r1 or not r2 then return false end
+            
+            if r2 <= r1 then isIncreasing = false end
+            if r2 >= r1 then isDecreasing = false end
         end
-        return colorCount >= 2
+        
+        return isIncreasing or isDecreasing
     end
     
     local function makePatternString(si, length)
@@ -239,21 +205,11 @@ function PatternChecker.checkTwins(boardTable)
         return indices
     end
     
-    -- 세 쌍둥이 (6장)
-    if n >= 6 then
-        for start = 1, n - 6 + 1 do
-            if checkTwinsSymmetry(start, 6) then
-                table.insert(results, {cat="TWINS", name="Triple Twins", chips=100, mult=8, pat=makePatternString(start, 6), idx=getIndices(start, 6)})
-                return results
-            end
-        end
-    end
-    
-    -- 쌍둥이 (4장)
-    if n >= 4 then
-        for start = 1, n - 4 + 1 do
-            if checkTwinsSymmetry(start, 4) then
-                table.insert(results, {cat="TWINS", name="Double Twins", chips=45, mult=4, pat=makePatternString(start, 4), idx=getIndices(start, 4)})
+    -- 가장 긴 연속 순서부터 3개까지 역순 탐색
+    for length = n, 3, -1 do
+        for start = 1, n - length + 1 do
+            if checkSeq(start, length) then
+                table.insert(results, {cat="CRESCENDO", name="Crescendo", length=length, pat=makePatternString(start, length), idx=getIndices(start, length)})
                 return results
             end
         end
@@ -262,10 +218,11 @@ function PatternChecker.checkTwins(boardTable)
     return results
 end
 
--- ZIGZAG: 두 색이 번갈아가며 나타나는 교대 패턴 검출
+-- ZIGZAG: 두 색이 번갈아가며 나타나는 교대 패턴 검출 (최장 길이 1개만 반환)
 function PatternChecker.checkZigzag(boardTable)
     local results = {}
     local n = boardLen(boardTable)
+    if n < 3 then return results end
     
     local function checkAlternating(si, length)
         local ei = si + length - 1
@@ -303,19 +260,11 @@ function PatternChecker.checkZigzag(boardTable)
         return indices
     end
     
-    -- 큰 지그재그 (7장 전체 교대)
-    if n >= 7 then
-        if checkAlternating(1, 7) then
-            table.insert(results, {cat="ZIGZAG", name="Grand Zigzag", chips=180, mult=14, pat=makePatternString(1, 7), idx=getIndices(1, 7)})
-            return results
-        end
-    end
-    
-    -- 작은 지그재그 (5~6장 교대)
-    for length = math.min(6, n), 5, -1 do
+    -- 가장 긴 지그재그부터 3개까지 역순 탐색
+    for length = n, 3, -1 do
         for start = 1, n - length + 1 do
             if checkAlternating(start, length) then
-                table.insert(results, {cat="ZIGZAG", name="Mini Zigzag", chips=65, mult=5, pat=makePatternString(start, length), idx=getIndices(start, length)})
+                table.insert(results, {cat="ZIGZAG", name="Zigzag", length=length, pat=makePatternString(start, length), idx=getIndices(start, length)})
                 return results
             end
         end
@@ -334,7 +283,7 @@ function PatternChecker.evaluate(boardTable)
     for _, x in ipairs(PatternChecker.checkMirror(boardTable)) do 
         table.insert(detected, x) 
     end
-    for _, x in ipairs(PatternChecker.checkStep(boardTable)) do 
+    for _, x in ipairs(PatternChecker.checkCrescendo(boardTable)) do 
         table.insert(detected, x) 
     end
     for _, x in ipairs(PatternChecker.checkTwins(boardTable)) do 

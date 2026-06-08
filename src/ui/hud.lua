@@ -114,7 +114,23 @@ function HUD.drawTopUI(G)
     love.graphics.setFont(HUD.fX)
     local scoreColor = G.roundCleared and P.cMono or P.gold
     love.graphics.setColor(scoreColor)
-    love.graphics.print(tostring(math.floor(G.dScore)), x + 20, curScoreY + 18)
+    
+    local sScale = G.scoreScale or 1.0
+    if sScale ~= 1.0 then
+        love.graphics.push()
+        local st = tostring(math.floor(G.dScore))
+        local tw = HUD.fX:getWidth(st)
+        local th = HUD.fX:getHeight()
+        local tx = x + 20 + tw / 2
+        local ty = curScoreY + 18 + th / 2
+        love.graphics.translate(tx, ty)
+        love.graphics.scale(sScale, sScale)
+        love.graphics.translate(-tx, -ty)
+        love.graphics.print(st, x + 20, curScoreY + 18)
+        love.graphics.pop()
+    else
+        love.graphics.print(tostring(math.floor(G.dScore)), x + 20, curScoreY + 18)
+    end
 
     -- ───────────────────────────────────────────
     -- Balatro 스타일 체인(별) x 콤보(배수) 대형 대시보드
@@ -146,10 +162,18 @@ function HUD.drawTopUI(G)
     love.graphics.scale(cScale, cScale)
     love.graphics.translate(-(chipBoxX + boxSizeW/2), -(dashY + dashH/2))
     
-    love.graphics.setColor(0, 0, 0, 0.05)
-    love.graphics.rectangle("fill", chipBoxX, dashY + 3, boxSizeW, dashH, 8, 8)
+    -- 하드 섀도우
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.rectangle("fill", chipBoxX + 3, dashY + 3, boxSizeW, dashH, 16, 16)
+    
+    -- 메인 색상
     love.graphics.setColor(P.chip)
-    love.graphics.rectangle("fill", chipBoxX, dashY, boxSizeW, dashH, 8, 8)
+    love.graphics.rectangle("fill", chipBoxX, dashY, boxSizeW, dashH, 16, 16)
+    
+    -- 굵은 테두리
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.setLineWidth(2.0)
+    love.graphics.rectangle("line", chipBoxX, dashY, boxSizeW, dashH, 16, 16)
     
     love.graphics.setFont(HUD.fS)
     Button.txtC("체인 (별)", chipBoxX + boxSizeW/2, dashY + 8, P.white)
@@ -170,10 +194,18 @@ function HUD.drawTopUI(G)
     love.graphics.scale(mScale, mScale)
     love.graphics.translate(-(multBoxX + boxSizeW/2), -(dashY + dashH/2))
     
-    love.graphics.setColor(0, 0, 0, 0.05)
-    love.graphics.rectangle("fill", multBoxX, dashY + 3, boxSizeW, dashH, 8, 8)
+    -- 하드 섀도우
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.rectangle("fill", multBoxX + 3, dashY + 3, boxSizeW, dashH, 16, 16)
+    
+    -- 메인 색상
     love.graphics.setColor(P.mult)
-    love.graphics.rectangle("fill", multBoxX, dashY, boxSizeW, dashH, 8, 8)
+    love.graphics.rectangle("fill", multBoxX, dashY, boxSizeW, dashH, 16, 16)
+    
+    -- 굵은 테두리
+    love.graphics.setColor(0.102, 0.102, 0.102, 1.0)
+    love.graphics.setLineWidth(2.0)
+    love.graphics.rectangle("line", multBoxX, dashY, boxSizeW, dashH, 16, 16)
     
     love.graphics.setFont(HUD.fS)
     Button.txtC("콤보 (배수)", multBoxX + boxSizeW/2, dashY + 8, P.white)
@@ -244,7 +276,7 @@ function HUD.drawCheatSheet(G)
         Button.pill(cpx, y + 1, pw, ph, tostring(chips), P.chip, HUD.fS)
         Button.pill(mx, y + 1, pw, ph, "x" .. tostring(mult), P.mult, HUD.fS)
         
-        y = y + 23
+        y = y + 30
     end
 
     local function sectionHeader(cc, title)
@@ -262,26 +294,26 @@ function HUD.drawCheatSheet(G)
         y = y + 18
     end
 
-    sectionHeader(P.cMono, "같은색")
-    entry(P.cMono, "세 친구", "3장", "Mini Mono")
-    entry(P.cMono, "네 친구", "4장", "Half Mono")
-    entry(P.cMono, "색 탑", "5+", "Tower")
+    sectionHeader(P.cMono, "모노")
+    entry(P.cMono, "모노", "동일 색상 3장 이상", "Mono")
     
-    sectionHeader(P.cMirr, "거울")
-    entry(P.cMirr, "작은 거울", "5~6", "Half Mirror")
-    entry(P.cMirr, "큰 거울", "7장", "Grand Mirror")
-    
-    sectionHeader(P.cStep, "계단")
-    entry(P.cStep, "작은 계단", "", "Half Step")
-    entry(P.cStep, "무지개 계단", "", "Perfect Ladder")
+    sectionHeader(P.cMirr, "대칭")
+    entry(P.cMirr, "대칭", "좌우 대칭 3장 이상", "Mirror")
     
     sectionHeader(P.cTwins, "쌍둥이")
-    entry(P.cTwins, "쌍둥이", "2쌍", "Double Twins")
-    entry(P.cTwins, "세 쌍둥이", "3쌍", "Triple Twins")
+    entry(P.cTwins, "쌍둥이", "인접한 색상 1쌍 이상", "Twins")
+    
+    sectionHeader(P.cStep, "크레센도")
+    entry(P.cStep, "크레센도", "색상 순서 정렬 3장 이상", "Crescendo")
     
     sectionHeader(P.cZigzag, "지그재그")
-    entry(P.cZigzag, "작은 지그재그", "", "Mini Zigzag")
-    entry(P.cZigzag, "큰 지그재그", "7장", "Grand Zigzag")
+    entry(P.cZigzag, "지그재그", "두 색상 교대 3장 이상", "Zigzag")
+    
+    -- 동적 배율 팁 추가
+    y = y + 10
+    love.graphics.setFont(HUD.fS)
+    love.graphics.setColor(P.gold[1], P.gold[2], P.gold[3], 0.85)
+    love.graphics.printf("※ 규칙 기여 카드가 많을수록\n   득점 배율이 더욱 상승합니다!", cx + 18, y, cw - 36, "left")
     
     -- Bottom formula
     love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.2)
@@ -377,14 +409,9 @@ end
 function HUD.drawBagOverlay(G)
     if not G.showBag then return end
 
-    -- 반투명 밝은 그레이블루 흐림 배경
-    love.graphics.setColor(0.957, 0.965, 0.980, 0.85)
+    -- 불투명 단색 배경 (네오 브루탈리즘 스타일)
+    love.graphics.setColor(P.bg[1], P.bg[2], P.bg[3], 0.95)
     love.graphics.rectangle("fill", 0, 0, C.SW, C.SH)
-    
-    love.graphics.setColor(P.panelBd[1], P.panelBd[2], P.panelBd[3], 0.15)
-    for y = 0, C.SH, 8 do
-        love.graphics.line(0, y, C.SW, y)
-    end
 
     local px, py, pw, ph = C.HCX - 560, 70, 1120, 590
     Panel.draw(px, py, pw, ph, 14)
@@ -556,4 +583,3 @@ function HUD.drawBagOverlay(G)
 end
 
 return HUD
-
