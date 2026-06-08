@@ -143,57 +143,54 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   const Spacer(),
 
                   // Board
-                  Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        height: 120,
-                        padding: const EdgeInsets.all(12),
-                        decoration: AppTheme.panelDecoration().copyWith(
-                          color: AppTheme.surfaceAlt.withValues(alpha: 0.5),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: List.generate(Constants.bn, (index) {
-                            var card = index < G.board.length ? G.board[index] : null;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                              child: card != null
-                                  ? CardWidget(card: card)
-                                  : Container(
-                                      width: 70,
-                                      height: 92,
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.surface,
-                                        border: Border.all(
-                                          color: AppTheme.border,
-                                          style: BorderStyle.solid,
-                                          width: 2,
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
+                  Container(
+                    height: 120,
+                    padding: const EdgeInsets.all(12),
+                    decoration: AppTheme.panelDecoration().copyWith(
+                      color: AppTheme.surfaceAlt.withValues(alpha: 0.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(Constants.bn, (index) {
+                        var card = index < G.board.length ? G.board[index] : null;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                          child: card != null
+                              ? CardWidget(card: card)
+                              : Container(
+                                  width: 70,
+                                  height: 92,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surface,
+                                    border: Border.all(
+                                      color: AppTheme.border,
+                                      style: BorderStyle.solid,
+                                      width: 2,
                                     ),
-                            );
-                          }),
-                        ),
-                      ),
-                      // Score Overlay
-                      if (G.phase == "scoring")
-                        Positioned(
-                          bottom: -60,
-                          child: ScoreOverlay(
-                            chips: ScoreSystem.state.dChips,
-                            mult: ScoreSystem.state.dMult,
-                            xMult: ScoreSystem.state.xMult,
-                          ),
-                        ),
-                    ],
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                        );
+                      }),
+                    ),
                   ),
 
                   const SizedBox(height: 16),
-                  if (G.phase != "scoring")
-                    PatternPreviewWidget(patterns: currentPatterns),
+                  AnimatedCrossFade(
+                    firstChild: ScoreOverlay(
+                      chips: ScoreSystem.state.dChips,
+                      mult: ScoreSystem.state.dMult,
+                      xMult: ScoreSystem.state.xMult,
+                      visible: G.phase == "scoring",
+                    ),
+                    secondChild: PatternPreviewWidget(patterns: currentPatterns),
+                    crossFadeState: G.phase == "scoring"
+                        ? CrossFadeState.showFirst
+                        : CrossFadeState.showSecond,
+                    duration: AppTheme.normal,
+                    firstCurve: Curves.easeOutBack,
+                    secondCurve: Curves.easeIn,
+                  ),
 
                   const Spacer(),
 
